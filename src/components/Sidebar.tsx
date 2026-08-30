@@ -16,6 +16,7 @@ interface SidebarProps {
   onRemoveItem: (itemId: string) => void
   onChangeSettings: (updates: Partial<CollageSettings>) => void
   onShuffle: () => void
+  onShuffleItems: () => void
   onPreview: () => void
   isSettingsOpen: boolean
 }
@@ -64,6 +65,7 @@ function ItemRow({
   onSelect,
   onMove,
   onReorder,
+  onRemove,
 }: {
   item: CollageItem
   index: number
@@ -73,6 +75,7 @@ function ItemRow({
   onSelect: () => void
   onMove: (direction: -1 | 1) => void
   onReorder: (sourceId: string, targetId: string) => void
+  onRemove: () => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
 
@@ -109,6 +112,7 @@ function ItemRow({
       <span className="item-row__actions">
         <button className="icon-button icon-button--tiny" onClick={() => onMove(-1)} disabled={isFirst} aria-label="Поднять в списке"><ArrowUpIcon /></button>
         <button className="icon-button icon-button--tiny" onClick={() => onMove(1)} disabled={isLast} aria-label="Опустить в списке"><ArrowDownIcon /></button>
+        <button className="item-row__remove" type="button" onClick={(event) => { event.stopPropagation(); onRemove() }} aria-label={`Удалить ${item.name}`}>×</button>
         <DragIcon className="drag-icon" />
       </span>
     </div>
@@ -165,6 +169,7 @@ export function Sidebar({
   onRemoveItem,
   onChangeSettings,
   onShuffle,
+  onShuffleItems,
   onPreview,
   isSettingsOpen,
 }: SidebarProps) {
@@ -183,9 +188,12 @@ export function Sidebar({
       <section className="media-panel" aria-label="Порядок композиции">
         <div className="section-heading">
           <span>Порядок</span>
-          <button className="section-heading__toggle" type="button" onClick={() => setIsListOpen((current) => !current)} aria-expanded={isListOpen}>
-            {isListOpen ? 'Свернуть' : `Показать (${items.length})`}
-          </button>
+          <span className="section-heading__actions">
+            <button className="section-heading__shuffle" type="button" onClick={onShuffleItems}><ShuffleIcon />Перемешать</button>
+            <button className="section-heading__toggle" type="button" onClick={() => setIsListOpen((current) => !current)} aria-expanded={isListOpen}>
+              {isListOpen ? 'Свернуть' : `Показать (${items.length})`}
+            </button>
+          </span>
         </div>
         {isListOpen && <div className="media-list" role="list">
           {items.map((item, index) => (
@@ -199,6 +207,7 @@ export function Sidebar({
               onSelect={() => onSelectItem(item.id)}
               onMove={(direction) => onMoveItem(item.id, direction)}
               onReorder={onReorderItems}
+              onRemove={() => onRemoveItem(item.id)}
             />
           ))}
         </div>}

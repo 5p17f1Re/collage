@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { CollageItem } from '../types'
 import { CloseIcon } from './icons'
 
@@ -10,9 +10,15 @@ interface GalleryDialogProps {
 
 export function GalleryDialog({ items, activeItemId, onClose }: GalleryDialogProps) {
   const activeRef = useRef<HTMLElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    const activeItem = activeRef.current
+    if (scroller && activeItem) scroller.scrollTop = activeItem.offsetTop
+  }, [activeItemId])
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'center' })
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose()
     }
@@ -23,7 +29,7 @@ export function GalleryDialog({ items, activeItemId, onClose }: GalleryDialogPro
   return (
     <div className="gallery" role="dialog" aria-modal="true" aria-label="Галерея материалов">
       <button className="icon-button gallery__close" onClick={onClose} aria-label="Закрыть галерею"><CloseIcon /></button>
-      <div className="gallery__scroller">
+      <div ref={scrollerRef} className="gallery__scroller">
         {items.map((item) => (
           <article
             key={item.id}
