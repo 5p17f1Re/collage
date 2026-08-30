@@ -67,7 +67,7 @@ export function generateLayout(
       x,
       y,
       width: isText ? width * 1.38 : width,
-      rotation: isText ? 0 : (random() - 0.5) * 7 * scatter,
+      rotation: 0,
       zIndex: items.length - index,
     }
   })
