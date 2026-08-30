@@ -37,6 +37,9 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
+    let velocityX = 0
+    let lastX = 0
+    let lastTime = 0
 
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     const draggable = Draggable.create(worldNode, {
@@ -51,10 +54,42 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       dragClickables: true,
       ignore: '.settings-toggle',
       edgeResistance: 0.78,
+      onPress(this: Draggable) {
+        gsap.killTweensOf(worldNode)
+        lastX = this.x
+        lastTime = performance.now()
+        velocityX = 0
+      },
       onDrag(this: Draggable) {
         const draggableState = this as unknown as { x: number }
+        const now = performance.now()
+        let delta = draggableState.x - lastX
+        if (delta > world.width / 2) delta -= world.width
+        if (delta < -world.width / 2) delta += world.width
+        const elapsed = Math.max(now - lastTime, 1)
+        velocityX = velocityX * 0.72 + (delta / elapsed) * 0.28
+        lastTime = now
         while (draggableState.x > world.width / 2) draggableState.x -= world.width
         while (draggableState.x < -world.width / 2) draggableState.x += world.width
+        lastX = draggableState.x
+      },
+      onDragEnd(this: Draggable) {
+        if (Math.abs(velocityX) < 0.08) return
+        const currentX = this.x
+        gsap.to(worldNode, {
+          x: currentX + velocityX * 560,
+          duration: 1.15,
+          ease: 'power3.out',
+          overwrite: true,
+          modifiers: {
+            x: (value) => {
+              let next = Number(value)
+              while (next > world.width / 2) next -= world.width
+              while (next < -world.width / 2) next += world.width
+              return next
+            },
+          },
+        })
       },
     })[0]
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
