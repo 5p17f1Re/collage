@@ -282,6 +282,10 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
   isolation: isolate;
   touch-action: none;
   user-select: none;
+  cursor: grab;
+}
+.collage-stage.is-dragging {
+  cursor: grabbing;
 }
 .collage-grid {
   position: absolute;
