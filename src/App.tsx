@@ -50,6 +50,15 @@ function reorderItems(items: CollageItem[], sourceId: string, targetId: string) 
   return reorderedItems
 }
 
+function shuffleItems(items: CollageItem[]) {
+  const shuffledItems = [...items]
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const targetIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffledItems[index], shuffledItems[targetIndex]] = [shuffledItems[targetIndex], shuffledItems[index]]
+  }
+  return shuffledItems
+}
+
 export function App() {
   const [items, setItems] = useState<CollageItem[]>(() => SAMPLE_ITEMS.map((item) => ({ ...item })))
   const [settings, setSettings] = useState<CollageSettings>(INITIAL_SETTINGS)
@@ -162,6 +171,10 @@ export function App() {
           onRemoveItem={() => selectedItem && handleRemoveItem(selectedItem.id)}
           onChangeSettings={(updates) => setSettings((currentSettings) => ({ ...currentSettings, ...updates }))}
           onShuffle={() => setSeed(Math.floor(Math.random() * 1000000000))}
+          onShuffleItems={() => {
+            setItems((currentItems) => shuffleItems(currentItems))
+            setSeed((currentSeed) => currentSeed + 1)
+          }}
           onPreview={() => setIsPreview(true)}
           isSettingsOpen={isSettingsOpen}
         />
