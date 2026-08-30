@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { sites } from '@openai/sites-vite-plugin'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 function staticWorker() {
@@ -14,7 +14,9 @@ function staticWorker() {
       outputDirectory = config.build.outDir
     },
     async writeBundle() {
+      const rootDirectory = resolve(outputDirectory)
       const serverDirectory = resolve(outputDirectory, 'server')
+      const clientDirectory = resolve(outputDirectory, 'client')
       const worker = `export default {
   async fetch(request, env) {
     const response = await env.ASSETS.fetch(request)
@@ -24,6 +26,12 @@ function staticWorker() {
 }
 `
 
+      await mkdir(clientDirectory, { recursive: true })
+      const outputEntries = await readdir(rootDirectory, { withFileTypes: true })
+      for (const entry of outputEntries) {
+        if (entry.name === 'client' || entry.name === 'server' || entry.name === '.openai') continue
+        await rename(resolve(rootDirectory, entry.name), resolve(clientDirectory, entry.name))
+      }
       await mkdir(serverDirectory, { recursive: true })
       await writeFile(resolve(serverDirectory, 'index.js'), worker)
     },
