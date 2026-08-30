@@ -1,0 +1,31 @@
+export type CollageItemType = 'image' | 'video' | 'text'
+export type ScaleMode = 'priority' | 'uniform'
+export type TextCardSize = 'small' | 'medium' | 'large'
+
+export interface CollageItem {
+  id: string
+  name: string
+  type: CollageItemType
+  source?: string
+  caption: string
+  text?: string
+  textSize?: TextCardSize
+  aspectRatio: number
+  isObjectUrl?: boolean
+}
+
+export interface CollageSettings {
+  density: number
+  overlap: number
+  scaleMode: ScaleMode
+  globalScale: number
+  background: string
+}
+
+export interface ItemLayout {
+  x: number
+  y: number
+  width: number
+  rotation: number
+  zIndex: number
+}

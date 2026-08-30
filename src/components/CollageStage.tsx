@@ -1,0 +1,99 @@
+import { useLayoutEffect, useMemo, useRef } from 'react'
+import { gsap } from 'gsap'
+import { Draggable } from 'gsap/Draggable'
+import { generateLayout, getWorldSize } from '../lib/layout'
+import type { CollageItem, CollageSettings } from '../types'
+
+gsap.registerPlugin(Draggable)
+
+interface CollageStageProps {
+  items: CollageItem[]
+  settings: CollageSettings
+  seed: number
+  isMobile: boolean
+  isPreview: boolean
+  onSelectItem: (item: CollageItem) => void
+}
+
+function getItemAspectRatio(item: CollageItem) {
+  if (item.type !== 'text') return item.aspectRatio
+  if (item.textSize === 'small') return 1.3
+  if (item.textSize === 'large') return 1.56
+  return 1.42
+}
+
+export function CollageStage({ items, settings, seed, isMobile, isPreview, onSelectItem }: CollageStageProps) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const worldRef = useRef<HTMLDivElement>(null)
+  const layouts = useMemo(() => generateLayout(items, settings, seed, isMobile), [items, settings, seed, isMobile])
+  const world = getWorldSize(isMobile)
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current
+    const worldNode = worldRef.current
+    if (!stage || !worldNode) return undefined
+
+    const stageBounds = stage.getBoundingClientRect()
+    const horizontalRange = Math.max((world.width - stageBounds.width) / 2, 120)
+    const verticalRange = Math.max((world.height - stageBounds.height) / 2, 80)
+
+    gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
+    const draggable = Draggable.create(worldNode, {
+      type: isMobile ? 'x' : 'x,y',
+      trigger: stage,
+      bounds: isMobile
+        ? { minX: -horizontalRange, maxX: horizontalRange }
+        : { minX: -horizontalRange, maxX: horizontalRange, minY: -verticalRange, maxY: verticalRange },
+      allowEventDefault: true,
+      cursor: 'grab',
+      activeCursor: 'grabbing',
+      dragClickables: false,
+      edgeResistance: 0.78,
+    })[0]
+
+    return () => {
+      draggable.kill()
+    }
+  }, [isMobile, isPreview, world.height, world.width])
+
+  return (
+    <main
+      ref={stageRef}
+      className={`collage-stage ${isPreview ? 'collage-stage--preview' : ''}`}
+      style={{ backgroundColor: settings.background }}
+      aria-label="Интерактивный коллаж"
+    >
+      <div className="collage-stage__hint" aria-hidden="true">{isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
+      <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
+        {items.map((item) => {
+          const layout = layouts[item.id]
+          const aspectRatio = getItemAspectRatio(item)
+          const cardStyle = {
+            left: layout.x,
+            top: layout.y,
+            width: layout.width,
+            zIndex: layout.zIndex,
+            transform: `translate(-50%, -50%) rotate(${layout.rotation}deg)`,
+            aspectRatio: String(aspectRatio),
+          }
+
+          if (item.type === 'text') {
+            return (
+              <article key={item.id} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'}`} style={cardStyle}>
+                <p>{item.text || 'Напишите текст'}</p>
+              </article>
+            )
+          }
+
+          return (
+            <button key={item.id} className={`collage-card collage-card--${item.type}`} style={cardStyle} onClick={() => onSelectItem(item)} aria-label={`Открыть: ${item.name}`}>
+              {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} />}
+              {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} />}
+              <span className="collage-card__focus-label">Открыть</span>
+            </button>
+          )
+        })}
+      </div>
+    </main>
+  )
+}

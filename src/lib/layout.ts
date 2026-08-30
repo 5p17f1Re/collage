@@ -1,0 +1,76 @@
+import type { CollageItem, CollageSettings, ItemLayout } from '../types'
+
+const DESKTOP_WORLD = { width: 2600, height: 1540 }
+const MOBILE_WORLD = { width: 2060, height: 620 }
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
+const MIN_CARD_WIDTH = 112
+const MAX_CARD_WIDTH = 520
+const MIN_SCALE = 0.65
+const MAX_SCALE = 1.28
+
+function createSeededRandom(seed: number) {
+  let state = seed >>> 0
+
+  return () => {
+    state += 0x6d2b79f5
+    let value = state
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function interpolate(start: number, end: number, amount: number) {
+  return start + (end - start) * amount
+}
+
+export function getWorldSize(isMobile: boolean) {
+  return isMobile ? MOBILE_WORLD : DESKTOP_WORLD
+}
+
+export function generateLayout(
+  items: CollageItem[],
+  settings: CollageSettings,
+  seed: number,
+  isMobile: boolean,
+): Record<string, ItemLayout> {
+  const random = createSeededRandom(seed)
+  const world = getWorldSize(isMobile)
+  const layouts: Record<string, ItemLayout> = {}
+  const total = Math.max(items.length - 1, 1)
+  const compactness = interpolate(0.62, 1.28, settings.density / 100)
+  const overlapCompression = interpolate(1.12, 0.62, settings.overlap / 100)
+  const radialLimit = Math.min(world.width, world.height * 1.56) * 0.42 * compactness * overlapCompression
+  const globalScale = settings.globalScale / 100
+  const viewportScale = isMobile ? 0.76 : 1
+
+  items.forEach((item, index) => {
+    const rank = index / total
+    const priorityScale = settings.scaleMode === 'priority'
+      ? interpolate(MAX_SCALE, MIN_SCALE, Math.pow(rank, 0.72))
+      : 1
+    const sizeBias = 0.9 + random() * 0.2
+    const width = Math.max(
+      MIN_CARD_WIDTH,
+      Math.min(MAX_CARD_WIDTH, 230 * globalScale * viewportScale * priorityScale * sizeBias),
+    )
+    const ringDistance = index === 0 ? 0 : (70 + Math.pow(rank, 0.68) * radialLimit)
+    const angle = index * GOLDEN_ANGLE + (random() - 0.5) * 0.55
+    const scatter = settings.overlap / 100
+    const xJitter = (random() - 0.5) * 110 * scatter
+    const yJitter = (random() - 0.5) * 90 * scatter
+    const isText = item.type === 'text'
+    const x = world.width / 2 + Math.cos(angle) * ringDistance + xJitter
+    const y = world.height / 2 + Math.sin(angle) * ringDistance * (isMobile ? 0.36 : 0.62) + yJitter
+
+    layouts[item.id] = {
+      x,
+      y,
+      width: isText ? width * 1.38 : width,
+      rotation: isText ? 0 : (random() - 0.5) * 7 * scatter,
+      zIndex: items.length - index,
+    }
+  })
+
+  return layouts
+}
