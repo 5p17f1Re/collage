@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CollageStage } from './components/CollageStage'
-import { DetailsDialog } from './components/DetailsDialog'
 import { CloseIcon } from './components/icons'
 import { Sidebar } from './components/Sidebar'
 import { useMediaQuery } from './hooks/useMediaQuery'
@@ -13,6 +12,7 @@ const INITIAL_SETTINGS: CollageSettings = {
   scaleMode: 'priority',
   globalScale: 100,
   hoverScale: 124,
+  showGrid: false,
   background: '#d0d0d0',
 }
 
@@ -52,7 +52,6 @@ export function App() {
   const [items, setItems] = useState<CollageItem[]>(() => SAMPLE_ITEMS.map((item) => ({ ...item })))
   const [settings, setSettings] = useState<CollageSettings>(INITIAL_SETTINGS)
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
-  const [openedItem, setOpenedItem] = useState<CollageItem | undefined>()
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(true)
@@ -67,12 +66,12 @@ export function App() {
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isPreview && !openedItem) setIsPreview(false)
+      if (event.key === 'Escape' && isPreview) setIsPreview(false)
     }
 
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [isPreview, openedItem])
+  }, [isPreview])
 
   function handleAddFiles(files: File[]) {
     const newItems = files.map((file) => {
@@ -169,7 +168,6 @@ export function App() {
         seed={seed}
         isMobile={isMobile}
         isPreview={isPreview}
-        onSelectItem={setOpenedItem}
       />
       {!isPreview && (
         <button
@@ -183,7 +181,6 @@ export function App() {
         </button>
       )}
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
-      {openedItem && <DetailsDialog item={openedItem} onClose={() => setOpenedItem(undefined)} />}
     </div>
   )
 }

@@ -169,6 +169,7 @@ export function Sidebar({
   isSettingsOpen,
 }: SidebarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [isListOpen, setIsListOpen] = useState(true)
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
@@ -180,8 +181,13 @@ export function Sidebar({
     <aside className="sidebar">
       <header className="sidebar__header"><span>COLLAGE LAB</span><span className="sidebar__count">{items.length}</span></header>
       <section className="media-panel" aria-label="Порядок композиции">
-        <div className="section-heading"><span>Порядок</span><span className="section-heading__hint">центр → периферия</span></div>
-        <div className="media-list" role="list">
+        <div className="section-heading">
+          <span>Порядок</span>
+          <button className="section-heading__toggle" type="button" onClick={() => setIsListOpen((current) => !current)} aria-expanded={isListOpen}>
+            {isListOpen ? 'Свернуть' : `Показать (${items.length})`}
+          </button>
+        </div>
+        {isListOpen && <div className="media-list" role="list">
           {items.map((item, index) => (
             <ItemRow
               key={item.id}
@@ -195,7 +201,7 @@ export function Sidebar({
               onReorder={onReorderItems}
             />
           ))}
-        </div>
+        </div>}
         <div className="media-actions">
           <input ref={inputRef} className="visually-hidden" id="media-upload" type="file" accept="image/*,video/*" multiple onChange={handleFileChange} />
           <button className="text-button" onClick={() => inputRef.current?.click()}><AddIcon />Добавить медиа</button>
@@ -214,11 +220,12 @@ export function Sidebar({
       {isSettingsOpen && (
         <section id="composition-settings" className="settings-panel" aria-label="Настройки композиции">
           <div className="section-heading"><span>Композиция</span></div>
-          <RangeControl label="Плотность" value={settings.density} min={20} max={90} onChange={(density) => onChangeSettings({ density })} />
-          <RangeControl label="Перекрытие" value={settings.overlap} min={0} max={85} onChange={(overlap) => onChangeSettings({ overlap })} />
+          <RangeControl label="Плотность" value={settings.density} min={5} max={130} onChange={(density) => onChangeSettings({ density })} />
+          <RangeControl label="Перекрытие" value={settings.overlap} min={-30} max={130} onChange={(overlap) => onChangeSettings({ overlap })} />
           <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
           <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
           <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
+          <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
           <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
         </section>
       )}
