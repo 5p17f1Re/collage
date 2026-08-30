@@ -48,7 +48,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       bounds: isMobile
         ? { minX: -100000, maxX: 100000 }
         : { minX: -100000, maxX: 100000, minY: -verticalRange, maxY: verticalRange },
-      allowEventDefault: true,
+      allowEventDefault: false,
+      allowNativeTouchScrolling: false,
       cursor: 'grab',
       activeCursor: 'grabbing',
       dragClickables: true,
