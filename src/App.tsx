@@ -14,8 +14,8 @@ const INITIAL_SETTINGS: CollageSettings = {
   scaleMode: 'priority',
   globalScale: 100,
   hoverScale: 124,
-  showGrid: false,
-  background: '#d0d0d0',
+  showGrid: true,
+  background: '#ffffff',
 }
 
 const DEFAULT_TEXT = 'Мы представляем\nновую коллекцию\n«Сад»'
@@ -145,12 +145,6 @@ export function App() {
 
   return (
     <div className={`app-shell ${isPreview ? 'app-shell--preview' : ''}`}>
-      {!isPreview && (
-        <header className="app-topbar">
-          <h1>Коллаж / август</h1>
-          <p>Локальная лаборатория композиции</p>
-        </header>
-      )}
       {!isPreview && (
         <Sidebar
           items={items}

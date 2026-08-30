@@ -31,7 +31,7 @@ button:disabled { opacity: .32; cursor: not-allowed; }
   min-height: 0;
   display: grid;
   grid-template-columns: 330px minmax(0, 1fr);
-  grid-template-rows: 54px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: oklch(0.98 0 0);
 }
@@ -55,7 +55,7 @@ button:disabled { opacity: .32; cursor: not-allowed; }
 
 .sidebar {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -274,7 +274,7 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
 
 .collage-stage {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -473,14 +473,14 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 48px 46svh minmax(0, 1fr);
+    grid-template-rows: 46svh minmax(0, 1fr);
     overflow: hidden;
   }
   .app-topbar { height: 48px; min-height: 48px; padding: 0 14px; }
   .app-topbar p { display: none; }
   .app-topbar { grid-column: 1; grid-row: 1; }
-  .collage-stage { grid-column: 1; grid-row: 2; order: initial; height: auto; min-height: 0; }
-  .sidebar { grid-column: 1; grid-row: 3; min-height: 0; overflow-y: auto; border-right: 0; border-top: 1px solid oklch(0.79 0 0); order: initial; }
+  .collage-stage { grid-column: 1; grid-row: 1; order: initial; height: auto; min-height: 0; }
+  .sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow-y: auto; border-right: 0; border-top: 1px solid oklch(0.79 0 0); order: initial; }
   .sidebar__header { min-height: 45px; }
   .collage-stage__hint { right: 11px; bottom: 10px; }
   .media-panel, .item-inspector, .settings-panel { padding: 16px 14px; }
