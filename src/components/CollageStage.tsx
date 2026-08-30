@@ -13,6 +13,7 @@ interface CollageStageProps {
   seed: number
   isMobile: boolean
   isPreview: boolean
+  onOpenGallery: (itemId: string) => void
 }
 
 function getItemAspectRatio(item: CollageItem) {
@@ -22,7 +23,7 @@ function getItemAspectRatio(item: CollageItem) {
   return 1.42
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpenGallery }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const layouts = useMemo(() => generateLayout(items, settings, seed, isMobile), [items, settings, seed, isMobile])
@@ -96,6 +97,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview }: Col
               duration: 0.62,
               ease: 'power3.out',
               overwrite: true,
+              onComplete: () => onOpenGallery(item.id),
               modifiers: {
                 x: (value) => {
                   let next = Number(value)
@@ -116,7 +118,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview }: Col
           }
 
           return (
-            <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Центрировать: ${item.name}`}>
+            <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Открыть галерею: ${item.name}`}>
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} />}
               {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} />}
             </button>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CollageStage } from './components/CollageStage'
+import { GalleryDialog } from './components/GalleryDialog'
 import { CloseIcon } from './components/icons'
 import { Sidebar } from './components/Sidebar'
 import { useMediaQuery } from './hooks/useMediaQuery'
@@ -8,7 +9,8 @@ import type { CollageItem, CollageSettings } from './types'
 
 const INITIAL_SETTINGS: CollageSettings = {
   density: 56,
-  overlap: 34,
+  horizontalOverlap: 34,
+  verticalOverlap: 34,
   scaleMode: 'priority',
   globalScale: 100,
   hoverScale: 124,
@@ -55,10 +57,12 @@ export function App() {
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(true)
+  const [galleryItemId, setGalleryItemId] = useState<string>()
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedItemId), [items, selectedItemId])
+  const galleryItems = useMemo(() => items.filter((item) => item.type !== 'text' && item.source), [items])
 
   useEffect(() => () => {
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
@@ -168,6 +172,7 @@ export function App() {
         seed={seed}
         isMobile={isMobile}
         isPreview={isPreview}
+        onOpenGallery={(itemId) => setGalleryItemId(itemId)}
       />
       {!isPreview && (
         <button
@@ -181,6 +186,7 @@ export function App() {
         </button>
       )}
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
+      {galleryItemId && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={galleryItemId} onClose={() => setGalleryItemId(undefined)} />}
     </div>
   )
 }

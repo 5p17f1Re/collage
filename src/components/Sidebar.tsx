@@ -220,8 +220,9 @@ export function Sidebar({
       {isSettingsOpen && (
         <section id="composition-settings" className="settings-panel" aria-label="Настройки композиции">
           <div className="section-heading"><span>Композиция</span></div>
-          <RangeControl label="Плотность" value={settings.density} min={5} max={130} onChange={(density) => onChangeSettings({ density })} />
-          <RangeControl label="Перекрытие" value={settings.overlap} min={-30} max={130} onChange={(overlap) => onChangeSettings({ overlap })} />
+          <RangeControl label="Плотность" value={settings.density} min={0} max={150} onChange={(density) => onChangeSettings({ density })} />
+          <RangeControl label="Перекрытие по горизонтали" value={settings.horizontalOverlap} min={-50} max={150} onChange={(horizontalOverlap) => onChangeSettings({ horizontalOverlap })} />
+          <RangeControl label="Перекрытие по вертикали" value={settings.verticalOverlap} min={-50} max={150} onChange={(verticalOverlap) => onChangeSettings({ verticalOverlap })} />
           <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
           <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
           <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />

@@ -24,6 +24,10 @@ function interpolate(start: number, end: number, amount: number) {
   return start + (end - start) * amount
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
 export function getWorldSize(isMobile: boolean) {
   return isMobile ? MOBILE_WORLD : DESKTOP_WORLD
 }
@@ -38,9 +42,12 @@ export function generateLayout(
   const world = getWorldSize(isMobile)
   const layouts: Record<string, ItemLayout> = {}
   const total = Math.max(items.length - 1, 1)
-  const compactness = interpolate(0.62, 1.28, settings.density / 100)
-  const overlapCompression = interpolate(1.12, 0.62, settings.overlap / 100)
-  const radialLimit = Math.min(world.width, world.height * 1.56) * 0.42 * compactness * overlapCompression
+  const compactness = interpolate(0.62, 1.28, settings.density / 150)
+  const horizontalOverlap = clamp((settings.horizontalOverlap + 50) / 200, 0, 1)
+  const verticalOverlap = clamp((settings.verticalOverlap + 50) / 200, 0, 1)
+  const radialLimit = Math.min(world.width, world.height * 1.56) * 0.42 * compactness
+  const radialLimitX = radialLimit * interpolate(1.12, 0.62, horizontalOverlap)
+  const radialLimitY = radialLimit * interpolate(1.12, 0.62, verticalOverlap)
   const globalScale = settings.globalScale / 100
   const viewportScale = isMobile ? 0.76 : 1
 
@@ -54,14 +61,14 @@ export function generateLayout(
       MIN_CARD_WIDTH,
       Math.min(MAX_CARD_WIDTH, 230 * globalScale * viewportScale * priorityScale * sizeBias),
     )
-    const ringDistance = index === 0 ? 0 : (70 + Math.pow(rank, 0.68) * radialLimit)
+    const ringDistance = index === 0 ? 0 : 70
     const angle = index * GOLDEN_ANGLE + (random() - 0.5) * 0.55
-    const scatter = settings.overlap / 100
-    const xJitter = (random() - 0.5) * 110 * scatter
-    const yJitter = (random() - 0.5) * 90 * scatter
+    const xJitter = (random() - 0.5) * 110 * horizontalOverlap
+    const yJitter = (random() - 0.5) * 90 * verticalOverlap
     const isText = item.type === 'text'
-    const x = world.width / 2 + Math.cos(angle) * ringDistance + xJitter
-    const y = world.height / 2 + Math.sin(angle) * ringDistance * (isMobile ? 0.36 : 0.62) + yJitter
+    const radialProgress = Math.pow(rank, 0.68)
+    const x = world.width / 2 + Math.cos(angle) * (ringDistance + radialProgress * radialLimitX) + xJitter
+    const y = world.height / 2 + Math.sin(angle) * (ringDistance + radialProgress * radialLimitY) * (isMobile ? 0.36 : 0.62) + yJitter
 
     layouts[item.id] = {
       x,

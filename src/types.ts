@@ -16,7 +16,8 @@ export interface CollageItem {
 
 export interface CollageSettings {
   density: number
-  overlap: number
+  horizontalOverlap: number
+  verticalOverlap: number
   scaleMode: ScaleMode
   globalScale: number
   hoverScale: number
