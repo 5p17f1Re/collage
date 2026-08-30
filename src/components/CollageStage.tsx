@@ -73,8 +73,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
         while (draggableState.x < -world.width / 2) draggableState.x += world.width
         lastX = draggableState.x
       },
-      onDragEnd(this: Draggable) {
-        if (Math.abs(velocityX) < 0.08) return
+      onRelease(this: Draggable) {
+        if (Math.abs(velocityX) < 0.02) return
         const currentX = this.x
         gsap.to(worldNode, {
           x: currentX + velocityX * 560,
