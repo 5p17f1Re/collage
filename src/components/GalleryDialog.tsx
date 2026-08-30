@@ -1,21 +1,28 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import type { CollageItem } from '../types'
 import { CloseIcon } from './icons'
 
 interface GalleryDialogProps {
   items: CollageItem[]
   activeItemId: string
+  origin?: { x: number; y: number }
   onClose: () => void
 }
 
-export function GalleryDialog({ items, activeItemId, onClose }: GalleryDialogProps) {
+export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryDialogProps) {
   const activeRef = useRef<HTMLElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
     const activeItem = activeRef.current
-    if (scroller && activeItem) scroller.scrollTop = activeItem.offsetTop
+    if (scroller && activeItem) {
+      const previousScrollBehavior = scroller.style.scrollBehavior
+      scroller.style.scrollBehavior = 'auto'
+      scroller.scrollTop = activeItem.offsetTop
+      scroller.style.scrollBehavior = previousScrollBehavior
+    }
   }, [activeItemId])
 
   useEffect(() => {
@@ -35,6 +42,8 @@ export function GalleryDialog({ items, activeItemId, onClose }: GalleryDialogPro
             key={item.id}
             ref={item.id === activeItemId ? activeRef : undefined}
             className="gallery__item"
+            data-active={item.id === activeItemId ? 'true' : undefined}
+            style={item.id === activeItemId && origin ? { '--origin-x': `${origin.x}px`, '--origin-y': `${origin.y}px` } as CSSProperties : undefined}
             data-gallery-id={item.id}
           >
             <div className="gallery__media">

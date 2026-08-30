@@ -285,7 +285,10 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
 }
 .collage-grid {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: -100%;
+  width: 300%;
   z-index: 0;
   pointer-events: none;
   opacity: .51;
@@ -396,11 +399,17 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 18px;
   scroll-snap-align: center;
-  animation: gallery-item-in .62s cubic-bezier(.2, .8, .2, 1) both;
+  opacity: .42;
+  transform: scale(.985);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.gallery__item[data-active="true"] {
+  opacity: 1;
+  animation: gallery-item-in .34s cubic-bezier(.2, .8, .2, 1) both;
 }
 @keyframes gallery-item-in {
-  from { opacity: 0; transform: scale(.94); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: .15; transform: translate(calc(var(--origin-x, 50vw) - 50vw), calc(var(--origin-y, 50vh) - 50vh)) scale(.18); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 .gallery__media { min-height: 0; display: grid; place-items: center; }
 .gallery__media img,

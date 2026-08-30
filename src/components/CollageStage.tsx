@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
 import { generateLayout, getWorldSize } from '../lib/layout'
@@ -13,7 +13,7 @@ interface CollageStageProps {
   seed: number
   isMobile: boolean
   isPreview: boolean
-  onOpenGallery: (itemId: string) => void
+  onOpenGallery: (itemId: string, origin: { x: number; y: number }) => void
 }
 
 function getItemAspectRatio(item: CollageItem) {
@@ -89,25 +89,9 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
             '--hover-scale': String(settings.hoverScale / 100),
           }
 
-          const focusCard = () => {
-            const targetX = world.width / 2 - left
-            const targetY = isMobile ? 0 : world.height / 2 - layout.y
-            gsap.to(worldRef.current, {
-              x: targetX,
-              y: targetY,
-              duration: 0.62,
-              ease: 'power3.out',
-              overwrite: true,
-              onComplete: () => onOpenGallery(item.id),
-              modifiers: {
-                x: (value) => {
-                  let next = Number(value)
-                  while (next > world.width / 2) next -= world.width
-                  while (next < -world.width / 2) next += world.width
-                  return next
-                },
-              },
-            })
+          const focusCard = (event: MouseEvent<HTMLButtonElement>) => {
+            const bounds = event.currentTarget.getBoundingClientRect()
+            onOpenGallery(item.id, { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 })
           }
 
           if (item.type === 'text') {

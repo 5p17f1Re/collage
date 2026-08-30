@@ -66,7 +66,7 @@ export function App() {
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(true)
-  const [galleryItemId, setGalleryItemId] = useState<string>()
+  const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
@@ -185,7 +185,7 @@ export function App() {
         seed={seed}
         isMobile={isMobile}
         isPreview={isPreview}
-        onOpenGallery={(itemId) => setGalleryItemId(itemId)}
+        onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
       />
       {!isPreview && (
         <button
@@ -199,7 +199,7 @@ export function App() {
         </button>
       )}
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
-      {galleryItemId && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={galleryItemId} onClose={() => setGalleryItemId(undefined)} />}
+      {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
     </div>
   )
 }
