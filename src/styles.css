@@ -285,8 +285,8 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
 }
 .collage-grid {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  height: 300%;
+  top: -100%;
   left: -100%;
   width: 300%;
   z-index: 0;

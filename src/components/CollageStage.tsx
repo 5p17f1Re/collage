@@ -64,21 +64,17 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
         const draggableState = this as unknown as { x: number }
         const now = performance.now()
         let delta = draggableState.x - lastX
-        if (delta > world.width / 2) delta -= world.width
-        if (delta < -world.width / 2) delta += world.width
         const elapsed = Math.max(now - lastTime, 1)
         velocityX = velocityX * 0.72 + (delta / elapsed) * 0.28
         lastTime = now
-        while (draggableState.x > world.width / 2) draggableState.x -= world.width
-        while (draggableState.x < -world.width / 2) draggableState.x += world.width
         lastX = draggableState.x
       },
       onRelease(this: Draggable) {
-        if (Math.abs(velocityX) < 0.02) return
         const currentX = this.x
+        const throwDistance = Math.abs(velocityX) < 0.02 ? 0 : velocityX * 560
         gsap.to(worldNode, {
-          x: currentX + velocityX * 560,
-          duration: 1.15,
+          x: currentX + throwDistance,
+          duration: throwDistance === 0 ? 0.08 : 1.15,
           ease: 'power3.out',
           overwrite: true,
           modifiers: {
