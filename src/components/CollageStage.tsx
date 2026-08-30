@@ -74,7 +74,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     >
       <div className="collage-stage__hint" aria-hidden="true">{isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
       <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
-        {settings.showGrid && <div className="collage-grid" aria-hidden="true" />}
+        {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
         {[-1, 0, 1].flatMap((copyOffset) => items.map((item) => {
           const layout = layouts[item.id]
           const aspectRatio = getItemAspectRatio(item)

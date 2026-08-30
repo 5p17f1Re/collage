@@ -22,6 +22,7 @@ export interface CollageSettings {
   globalScale: number
   hoverScale: number
   showGrid: boolean
+  gridColor: string
   background: string
 }
 

@@ -15,6 +15,7 @@ const INITIAL_SETTINGS: CollageSettings = {
   globalScale: 100,
   hoverScale: 124,
   showGrid: true,
+  gridColor: '#4a4a4a',
   background: '#ffffff',
 }
 
