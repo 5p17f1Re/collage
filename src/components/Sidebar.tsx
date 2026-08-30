@@ -17,6 +17,7 @@ interface SidebarProps {
   onChangeSettings: (updates: Partial<CollageSettings>) => void
   onShuffle: () => void
   onPreview: () => void
+  isSettingsOpen: boolean
 }
 
 function RangeControl({
@@ -165,6 +166,7 @@ export function Sidebar({
   onChangeSettings,
   onShuffle,
   onPreview,
+  isSettingsOpen,
 }: SidebarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -209,14 +211,17 @@ export function Sidebar({
           if (selectedItem) onRemoveItem(selectedItem.id)
         }}
       />
-      <section className="settings-panel" aria-label="Настройки композиции">
-        <div className="section-heading"><span>Композиция</span></div>
-        <RangeControl label="Плотность" value={settings.density} min={20} max={90} onChange={(density) => onChangeSettings({ density })} />
-        <RangeControl label="Перекрытие" value={settings.overlap} min={0} max={85} onChange={(overlap) => onChangeSettings({ overlap })} />
-        <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
-        <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
-        <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
-      </section>
+      {isSettingsOpen && (
+        <section id="composition-settings" className="settings-panel" aria-label="Настройки композиции">
+          <div className="section-heading"><span>Композиция</span></div>
+          <RangeControl label="Плотность" value={settings.density} min={20} max={90} onChange={(density) => onChangeSettings({ density })} />
+          <RangeControl label="Перекрытие" value={settings.overlap} min={0} max={85} onChange={(overlap) => onChangeSettings({ overlap })} />
+          <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
+          <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
+          <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
+          <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
+        </section>
+      )}
       <footer className="sidebar__footer">
         <button className="button button--quiet" onClick={onShuffle}><ShuffleIcon />Перемешать</button>
         <button className="button button--dark" onClick={onPreview}><EyeIcon />Чистый просмотр</button>

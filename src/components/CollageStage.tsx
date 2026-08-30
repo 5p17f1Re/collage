@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
 import { generateLayout, getWorldSize } from '../lib/layout'
@@ -47,7 +48,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onSel
       allowEventDefault: true,
       cursor: 'grab',
       activeCursor: 'grabbing',
-      dragClickables: false,
+      dragClickables: true,
+      ignore: '.settings-toggle',
       edgeResistance: 0.78,
     })[0]
 
@@ -75,18 +77,19 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onSel
             zIndex: layout.zIndex,
             transform: `translate(-50%, -50%) rotate(${layout.rotation}deg)`,
             aspectRatio: String(aspectRatio),
+            '--hover-scale': String(settings.hoverScale / 100),
           }
 
           if (item.type === 'text') {
             return (
-              <article key={item.id} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'}`} style={cardStyle}>
+              <article key={item.id} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'}`} style={cardStyle as CSSProperties}>
                 <p>{item.text || 'Напишите текст'}</p>
               </article>
             )
           }
 
           return (
-            <button key={item.id} className={`collage-card collage-card--${item.type}`} style={cardStyle} onClick={() => onSelectItem(item)} aria-label={`Открыть: ${item.name}`}>
+            <button key={item.id} className={`collage-card collage-card--${item.type}`} style={cardStyle as CSSProperties} onClick={() => onSelectItem(item)} aria-label={`Открыть: ${item.name}`}>
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} />}
               {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} />}
               <span className="collage-card__focus-label">Открыть</span>

@@ -12,6 +12,7 @@ const INITIAL_SETTINGS: CollageSettings = {
   overlap: 34,
   scaleMode: 'priority',
   globalScale: 100,
+  hoverScale: 124,
   background: '#d0d0d0',
 }
 
@@ -54,6 +55,7 @@ export function App() {
   const [openedItem, setOpenedItem] = useState<CollageItem | undefined>()
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(true)
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
@@ -158,9 +160,28 @@ export function App() {
           onChangeSettings={(updates) => setSettings((currentSettings) => ({ ...currentSettings, ...updates }))}
           onShuffle={() => setSeed(Math.floor(Math.random() * 1000000000))}
           onPreview={() => setIsPreview(true)}
+          isSettingsOpen={isSettingsOpen}
         />
       )}
-      <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview={isPreview} onSelectItem={setOpenedItem} />
+      <CollageStage
+        items={items}
+        settings={settings}
+        seed={seed}
+        isMobile={isMobile}
+        isPreview={isPreview}
+        onSelectItem={setOpenedItem}
+      />
+      {!isPreview && (
+        <button
+          className="settings-toggle"
+          type="button"
+          aria-expanded={isSettingsOpen}
+          aria-controls="composition-settings"
+          onClick={() => setIsSettingsOpen((current) => !current)}
+        >
+          {isSettingsOpen ? 'Свернуть настройки' : 'Настройки'}
+        </button>
+      )}
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
       {openedItem && <DetailsDialog item={openedItem} onClose={() => setOpenedItem(undefined)} />}
     </div>

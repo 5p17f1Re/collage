@@ -19,6 +19,7 @@ export interface CollageSettings {
   overlap: number
   scaleMode: ScaleMode
   globalScale: number
+  hoverScale: number
   background: string
 }
 
