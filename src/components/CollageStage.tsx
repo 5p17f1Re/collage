@@ -37,56 +37,31 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
-    let lastX = 0
-    let lastTime = 0
-    let velocityX = 0
-
-    const wrapX = (value: number) => {
-      let next = value
-      while (next > world.width / 2) next -= world.width
-      while (next < -world.width / 2) next += world.width
-      return next
-    }
 
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     const draggable = Draggable.create(worldNode, {
       type: isMobile ? 'x' : 'x,y',
       trigger: stage,
-      bounds: { minX: -100000, maxX: 100000, minY: -verticalRange, maxY: verticalRange },
-      allowEventDefault: false,
-      allowNativeTouchScrolling: false,
-      dragClickables: true,
-      minimumMovement: 4,
+      bounds: isMobile
+        ? { minX: -100000, maxX: 100000 }
+        : { minX: -100000, maxX: 100000, minY: -verticalRange, maxY: verticalRange },
+      allowEventDefault: true,
       cursor: 'grab',
       activeCursor: 'grabbing',
-      onPress(this: Draggable) {
-        gsap.killTweensOf(worldNode)
-        lastX = this.x
-        lastTime = performance.now()
-        velocityX = 0
-      },
+      dragClickables: true,
+      ignore: '.settings-toggle',
+      edgeResistance: 0.78,
       onDrag(this: Draggable) {
-        const now = performance.now()
-        const elapsed = Math.max(now - lastTime, 1)
-        velocityX = velocityX * 0.72 + ((this.x - lastX) / elapsed) * 0.28
-        lastX = this.x
-        lastTime = now
-      },
-      onRelease(this: Draggable) {
-        if (Math.abs(velocityX) < 0.02) return
-        gsap.to(worldNode, {
-          x: this.x + velocityX * 560,
-          duration: 1.15,
-          ease: 'power3.out',
-          overwrite: true,
-          modifiers: { x: (value) => wrapX(Number(value)) },
-        })
+        const draggableState = this as unknown as { x: number }
+        while (draggableState.x > world.width / 2) draggableState.x -= world.width
+        while (draggableState.x < -world.width / 2) draggableState.x += world.width
       },
     })[0]
+    gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
+    draggable.update()
 
     return () => {
       draggable.kill()
-      gsap.killTweensOf(worldNode)
     }
   }, [isMobile, isPreview, world.height, world.width])
 
