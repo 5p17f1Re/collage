@@ -1,8 +1,11 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
+import { Draggable } from 'gsap/Draggable'
 import { generateLayout, getWorldSize } from '../lib/layout'
 import type { CollageItem, CollageSettings } from '../types'
+
+gsap.registerPlugin(Draggable)
 
 interface CollageStageProps {
   items: CollageItem[]
@@ -30,21 +33,13 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     const stage = stageRef.current
     const worldNode = worldRef.current
     if (!stage || !worldNode) return undefined
-    const stageElement = stage
 
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
-    let activePointerId: number | undefined
-    let startPointerX = 0
-    let startPointerY = 0
-    let startWorldX = 0
-    let startWorldY = 0
-    let lastPointerX = 0
+    let lastX = 0
     let lastTime = 0
     let velocityX = 0
-    let hasDragged = false
-    let suppressClick = false
 
     const wrapX = (value: number) => {
       let next = value
@@ -53,85 +48,44 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       return next
     }
 
-    const clampY = (value: number) => Math.max(-verticalRange, Math.min(verticalRange, value))
-
-    function handlePointerDown(event: PointerEvent) {
-      if (event.pointerType === 'mouse' && event.button !== 0) return
-      if ((event.target as Element).closest('.settings-toggle')) return
-
-      activePointerId = event.pointerId
-      startPointerX = event.clientX
-      startPointerY = event.clientY
-      startWorldX = Number(gsap.getProperty(worldNode, 'x')) || 0
-      startWorldY = Number(gsap.getProperty(worldNode, 'y')) || 0
-      lastPointerX = event.clientX
-      lastTime = performance.now()
-      velocityX = 0
-      hasDragged = false
-      gsap.killTweensOf(worldNode)
-      stageElement.setPointerCapture(event.pointerId)
-      stageElement.classList.add('is-dragging')
-    }
-
-    function handlePointerMove(event: PointerEvent) {
-      if (event.pointerId !== activePointerId) return
-
-      const deltaX = event.clientX - startPointerX
-      const deltaY = event.clientY - startPointerY
-      if (!hasDragged && Math.hypot(deltaX, deltaY) > 4) hasDragged = true
-      if (hasDragged) event.preventDefault()
-
-      const now = performance.now()
-      const elapsed = Math.max(now - lastTime, 1)
-      velocityX = velocityX * 0.72 + ((event.clientX - lastPointerX) / elapsed) * 0.28
-      lastPointerX = event.clientX
-      lastTime = now
-
-      gsap.set(worldNode, {
-        x: startWorldX + deltaX,
-        y: isMobile ? startWorldY : clampY(startWorldY + deltaY),
-      })
-    }
-
-    function handlePointerUp(event: PointerEvent) {
-      if (event.pointerId !== activePointerId) return
-      if (hasDragged) suppressClick = true
-      activePointerId = undefined
-      if (stageElement.hasPointerCapture(event.pointerId)) stageElement.releasePointerCapture(event.pointerId)
-      stageElement.classList.remove('is-dragging')
-
-      const currentX = Number(gsap.getProperty(worldNode, 'x')) || 0
-      const throwDistance = Math.abs(velocityX) < 0.02 ? 0 : velocityX * 560
-      gsap.to(worldNode, {
-        x: currentX + throwDistance,
-        duration: throwDistance === 0 ? 0.08 : 1.15,
-        ease: 'power3.out',
-        overwrite: true,
-        modifiers: { x: (value) => wrapX(Number(value)) },
-      })
-    }
-
-    function handleClickCapture(event: Event) {
-      if (!suppressClick) return
-      event.preventDefault()
-      event.stopPropagation()
-      suppressClick = false
-    }
-
-    stageElement.addEventListener('pointerdown', handlePointerDown)
-    stageElement.addEventListener('pointermove', handlePointerMove)
-    stageElement.addEventListener('pointerup', handlePointerUp)
-    stageElement.addEventListener('pointercancel', handlePointerUp)
-    stageElement.addEventListener('click', handleClickCapture, true)
-
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
+    const draggable = Draggable.create(worldNode, {
+      type: isMobile ? 'x' : 'x,y',
+      trigger: stage,
+      bounds: { minX: -100000, maxX: 100000, minY: -verticalRange, maxY: verticalRange },
+      allowEventDefault: false,
+      allowNativeTouchScrolling: false,
+      dragClickables: true,
+      minimumMovement: 4,
+      cursor: 'grab',
+      activeCursor: 'grabbing',
+      onPress(this: Draggable) {
+        gsap.killTweensOf(worldNode)
+        lastX = this.x
+        lastTime = performance.now()
+        velocityX = 0
+      },
+      onDrag(this: Draggable) {
+        const now = performance.now()
+        const elapsed = Math.max(now - lastTime, 1)
+        velocityX = velocityX * 0.72 + ((this.x - lastX) / elapsed) * 0.28
+        lastX = this.x
+        lastTime = now
+      },
+      onRelease(this: Draggable) {
+        if (Math.abs(velocityX) < 0.02) return
+        gsap.to(worldNode, {
+          x: this.x + velocityX * 560,
+          duration: 1.15,
+          ease: 'power3.out',
+          overwrite: true,
+          modifiers: { x: (value) => wrapX(Number(value)) },
+        })
+      },
+    })[0]
 
     return () => {
-      stageElement.removeEventListener('pointerdown', handlePointerDown)
-      stageElement.removeEventListener('pointermove', handlePointerMove)
-      stageElement.removeEventListener('pointerup', handlePointerUp)
-      stageElement.removeEventListener('pointercancel', handlePointerUp)
-      stageElement.removeEventListener('click', handleClickCapture, true)
+      draggable.kill()
       gsap.killTweensOf(worldNode)
     }
   }, [isMobile, isPreview, world.height, world.width])
