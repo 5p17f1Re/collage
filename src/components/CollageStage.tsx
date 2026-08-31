@@ -26,6 +26,8 @@ function getItemAspectRatio(item: CollageItem) {
 export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpenGallery }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
+  const followBaseRef = useRef({ x: 0, y: 0 })
   const layouts = useMemo(() => generateLayout(items, settings, seed, isMobile), [items, settings, seed, isMobile])
   const world = getWorldSize(isMobile)
 
@@ -51,6 +53,15 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       dragClickables: true,
       ignore: '.settings-toggle',
       edgeResistance: 0.78,
+      onPress(this: Draggable) {
+        isDraggingRef.current = true
+        gsap.killTweensOf(worldNode)
+        followBaseRef.current = { x: this.x, y: this.y }
+      },
+      onRelease(this: Draggable) {
+        isDraggingRef.current = false
+        followBaseRef.current = { x: this.x, y: this.y }
+      },
       onDrag(this: Draggable) {
         const draggableState = this as unknown as { x: number }
         while (draggableState.x > world.width / 2) draggableState.x -= world.width
@@ -64,6 +75,55 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       draggable.kill()
     }
   }, [isMobile, isPreview, world.height, world.width])
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current
+    const worldNode = worldRef.current
+    if (!stage || !worldNode || isMobile || !settings.mouseFollow) return undefined
+    const stageElement = stage
+
+    function handleMouseEnter() {
+      followBaseRef.current = {
+        x: Number(gsap.getProperty(worldNode, 'x')) || 0,
+        y: Number(gsap.getProperty(worldNode, 'y')) || 0,
+      }
+    }
+
+    function handleMouseMove(event: globalThis.MouseEvent) {
+      if (isDraggingRef.current) return
+      const bounds = stageElement.getBoundingClientRect()
+      const horizontalPosition = (event.clientX - bounds.left) / bounds.width * 2 - 1
+      const verticalPosition = (event.clientY - bounds.top) / bounds.height * 2 - 1
+      gsap.to(worldNode, {
+        x: followBaseRef.current.x - horizontalPosition * 220,
+        y: followBaseRef.current.y - verticalPosition * 150,
+        duration: 0.35,
+        ease: 'power2.out',
+        overwrite: true,
+      })
+    }
+
+    function handleMouseLeave() {
+      if (isDraggingRef.current) return
+      gsap.to(worldNode, {
+        x: followBaseRef.current.x,
+        y: followBaseRef.current.y,
+        duration: 0.45,
+        ease: 'power2.out',
+        overwrite: true,
+      })
+    }
+
+    stageElement.addEventListener('mouseenter', handleMouseEnter)
+    stageElement.addEventListener('mousemove', handleMouseMove)
+    stageElement.addEventListener('mouseleave', handleMouseLeave)
+    return () => {
+      stageElement.removeEventListener('mouseenter', handleMouseEnter)
+      stageElement.removeEventListener('mousemove', handleMouseMove)
+      stageElement.removeEventListener('mouseleave', handleMouseLeave)
+      gsap.killTweensOf(worldNode)
+    }
+  }, [isMobile, settings.mouseFollow])
 
   return (
     <main

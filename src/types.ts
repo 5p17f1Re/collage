@@ -23,6 +23,7 @@ export interface CollageSettings {
   hoverScale: number
   showGrid: boolean
   gridColor: string
+  mouseFollow: boolean
   background: string
 }
 
