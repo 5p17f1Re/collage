@@ -376,6 +376,11 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
   z-index: 300;
   color: oklch(0.96 0 0);
   background: oklch(0.1 0 0);
+  animation: gallery-backdrop-in .34s ease both;
+}
+.gallery.is-closing {
+  pointer-events: none;
+  animation: gallery-backdrop-out .32s ease both;
 }
 .gallery__close {
   position: fixed;
@@ -407,13 +412,29 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
   opacity: 1;
   animation: gallery-item-in .34s cubic-bezier(.2, .8, .2, 1) both;
 }
+.gallery.is-closing .gallery__item[data-active="true"] {
+  animation: gallery-item-out .32s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes gallery-backdrop-in {
+  from { background: oklch(0.1 0 0 / 0); }
+  to { background: oklch(0.1 0 0 / 1); }
+}
+@keyframes gallery-backdrop-out {
+  from { background: oklch(0.1 0 0 / 1); }
+  to { background: oklch(0.1 0 0 / 0); }
+}
 @keyframes gallery-item-in {
   from { opacity: .15; transform: translate(calc(var(--origin-x, 50vw) - 50vw), calc(var(--origin-y, 50vh) - 50vh)) scale(.18); }
   to { opacity: 1; transform: translate(0, 0) scale(1); }
 }
+@keyframes gallery-item-out {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to { opacity: .15; transform: translate(calc(var(--origin-x, 50vw) - 50vw), calc(var(--origin-y, 50vh) - 50vh)) scale(.18); }
+}
 .gallery__media { min-height: 0; display: grid; place-items: center; }
 .gallery__media img,
 .gallery__media video { max-width: 100%; max-height: 78vh; display: block; object-fit: contain; }
+.gallery__item[data-active="true"] .gallery__media { cursor: zoom-out; }
 .gallery__caption { max-width: 70ch; margin: 0 auto; text-align: center; }
 .gallery__caption strong { font-size: 12px; }
 .gallery__caption p { margin: 7px 0 0; color: oklch(0.78 0 0); font-size: 12px; line-height: 1.45; }

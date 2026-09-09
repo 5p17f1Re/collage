@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { CollageItem } from '../types'
 import { CloseIcon } from './icons'
@@ -13,6 +13,14 @@ interface GalleryDialogProps {
 export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryDialogProps) {
   const activeRef = useRef<HTMLElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<number | undefined>(undefined)
+  const [isClosing, setIsClosing] = useState(false)
+
+  const closeGallery = useCallback(() => {
+    if (isClosing) return
+    setIsClosing(true)
+    closeTimerRef.current = window.setTimeout(onClose, 320)
+  }, [isClosing, onClose])
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
@@ -27,15 +35,19 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') closeGallery()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeItemId, onClose])
+  }, [activeItemId, closeGallery])
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current)
+  }, [])
 
   return (
-    <div className="gallery" role="dialog" aria-modal="true" aria-label="Галерея материалов">
-      <button className="icon-button gallery__close" onClick={onClose} aria-label="Закрыть галерею"><CloseIcon /></button>
+    <div className={`gallery ${isClosing ? 'is-closing' : ''}`} role="dialog" aria-modal="true" aria-label="Галерея материалов">
+      <button className="icon-button gallery__close" onClick={closeGallery} aria-label="Закрыть галерею"><CloseIcon /></button>
       <div ref={scrollerRef} className="gallery__scroller">
         {items.map((item) => (
           <article
@@ -46,7 +58,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
             style={item.id === activeItemId && origin ? { '--origin-x': `${origin.x}px`, '--origin-y': `${origin.y}px` } as CSSProperties : undefined}
             data-gallery-id={item.id}
           >
-            <div className="gallery__media">
+            <div className="gallery__media" onClick={item.id === activeItemId ? closeGallery : undefined}>
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} />}
               {item.type === 'video' && item.source && <video src={item.source} muted playsInline controls />}
             </div>

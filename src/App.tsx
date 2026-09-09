@@ -67,7 +67,6 @@ export function App() {
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
@@ -172,7 +171,7 @@ export function App() {
             setSeed((currentSeed) => currentSeed + 1)
           }}
           onPreview={() => setIsPreview(true)}
-          isSettingsOpen={isSettingsOpen}
+          isSettingsOpen={true}
         />
       )}
       <CollageStage
@@ -183,17 +182,6 @@ export function App() {
         isPreview={isPreview}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
       />
-      {!isPreview && (
-        <button
-          className="settings-toggle"
-          type="button"
-          aria-expanded={isSettingsOpen}
-          aria-controls="composition-settings"
-          onClick={() => setIsSettingsOpen((current) => !current)}
-        >
-          {isSettingsOpen ? 'Свернуть настройки' : 'Настройки'}
-        </button>
-      )}
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
       {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
     </div>
