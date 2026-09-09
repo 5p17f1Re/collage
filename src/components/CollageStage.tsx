@@ -1,8 +1,8 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
-import { generateLayout, getWorldSize } from '../lib/layout'
+import { generateLayout, getCursorFollowRange, getWorldSize } from '../lib/layout'
 import type { CollageItem, CollageSettings } from '../types'
 
 gsap.registerPlugin(Draggable)
@@ -28,19 +28,47 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
   const followBaseRef = useRef({ x: 0, y: 0 })
-  const layouts = useMemo(() => generateLayout(items, settings, seed, isMobile), [items, settings, seed, isMobile])
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
+  const viewport = useMemo(() => stageSize.width > 0 && stageSize.height > 0
+    ? stageSize
+    : isMobile ? { width: 390, height: 320 } : { width: 1200, height: 800 }, [isMobile, stageSize])
+  const isCursorMode = settings.interactionMode === 'cursor'
+  const followRange = getCursorFollowRange(viewport, isMobile)
+  const layouts = useMemo(
+    () => generateLayout(items, settings, seed, isMobile, { viewport }),
+    [items, settings, seed, isMobile, viewport],
+  )
   const world = getWorldSize(isMobile)
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return undefined
+
+    const updateStageSize = () => {
+      const bounds = stage.getBoundingClientRect()
+      const nextSize = { width: Math.round(bounds.width), height: Math.round(bounds.height) }
+      setStageSize((currentSize) => currentSize.width === nextSize.width && currentSize.height === nextSize.height ? currentSize : nextSize)
+    }
+
+    updateStageSize()
+    const observer = new ResizeObserver(updateStageSize)
+    observer.observe(stage)
+    return () => observer.disconnect()
+  }, [])
 
   useLayoutEffect(() => {
     const stage = stageRef.current
     const worldNode = worldRef.current
     if (!stage || !worldNode) return undefined
 
+    followBaseRef.current = { x: 0, y: 0 }
+    gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
+    if (isCursorMode) return undefined
+
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
 
-    gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     const draggable = Draggable.create(worldNode, {
       type: isMobile ? 'x' : 'x,y',
       trigger: stage,
@@ -74,12 +102,12 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     return () => {
       draggable.kill()
     }
-  }, [isMobile, isPreview, world.height, world.width])
+  }, [isCursorMode, isMobile, isPreview, world.height, world.width])
 
   useLayoutEffect(() => {
     const stage = stageRef.current
     const worldNode = worldRef.current
-    if (!stage || !worldNode || isMobile || !settings.mouseFollow) return undefined
+    if (!stage || !worldNode || isMobile || !isCursorMode) return undefined
     const stageElement = stage
 
     function handleMouseEnter() {
@@ -95,8 +123,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       const horizontalPosition = (event.clientX - bounds.left) / bounds.width * 2 - 1
       const verticalPosition = (event.clientY - bounds.top) / bounds.height * 2 - 1
       gsap.to(worldNode, {
-        x: followBaseRef.current.x - horizontalPosition * 220,
-        y: followBaseRef.current.y - verticalPosition * 150,
+        x: followBaseRef.current.x - horizontalPosition * followRange.x,
+        y: followBaseRef.current.y - verticalPosition * followRange.y,
         duration: 0.35,
         ease: 'power2.out',
         overwrite: true,
@@ -123,16 +151,16 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       stageElement.removeEventListener('mouseleave', handleMouseLeave)
       gsap.killTweensOf(worldNode)
     }
-  }, [isMobile, settings.mouseFollow])
+  }, [followRange.x, followRange.y, isCursorMode, isMobile])
 
   return (
     <main
       ref={stageRef}
-      className={`collage-stage ${isPreview ? 'collage-stage--preview' : ''} ${settings.showGrid ? 'collage-stage--grid' : ''}`}
+      className={`collage-stage ${isPreview ? 'collage-stage--preview' : ''} ${isCursorMode ? 'collage-stage--cursor-follow' : ''} ${settings.showGrid ? 'collage-stage--grid' : ''}`}
       style={{ backgroundColor: settings.background }}
       aria-label="Интерактивный коллаж"
     >
-      <div className="collage-stage__hint" aria-hidden="true">{isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
+      <div className="collage-stage__hint" aria-hidden="true">{isCursorMode ? 'Ведите мышью, чтобы исследовать' : isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
       <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
         {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
         {[-1, 0, 1].flatMap((copyOffset) => items.map((item) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import type { CollageItem } from '../types'
 import { CloseIcon } from './icons'
 
@@ -15,12 +15,28 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
   const scrollerRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<number | undefined>(undefined)
   const [isClosing, setIsClosing] = useState(false)
+  const [closingTargetId, setClosingTargetId] = useState(activeItemId)
+  const [closingOrigin, setClosingOrigin] = useState(origin)
 
-  const closeGallery = useCallback(() => {
-    if (isClosing) return
+  const beginClose = useCallback((targetId: string, targetOrigin?: { x: number; y: number }) => {
+    if (isClosing || closeTimerRef.current !== undefined) return
+    setClosingTargetId(targetId)
+    setClosingOrigin(targetOrigin)
     setIsClosing(true)
     closeTimerRef.current = window.setTimeout(onClose, 320)
   }, [isClosing, onClose])
+
+  const closeGallery = useCallback(() => {
+    beginClose(activeItemId, origin)
+  }, [activeItemId, beginClose, origin])
+
+  function handleMediaClick(event: MouseEvent<HTMLDivElement>, itemId: string) {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const targetOrigin = itemId === activeItemId && origin
+      ? origin
+      : { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 }
+    beginClose(itemId, targetOrigin)
+  }
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
@@ -55,10 +71,11 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
             ref={item.id === activeItemId ? activeRef : undefined}
             className="gallery__item"
             data-active={item.id === activeItemId ? 'true' : undefined}
-            style={item.id === activeItemId && origin ? { '--origin-x': `${origin.x}px`, '--origin-y': `${origin.y}px` } as CSSProperties : undefined}
+            style={item.id === closingTargetId && closingOrigin ? { '--origin-x': `${closingOrigin.x}px`, '--origin-y': `${closingOrigin.y}px` } as CSSProperties : undefined}
             data-gallery-id={item.id}
+            data-closing={item.id === closingTargetId ? 'true' : undefined}
           >
-            <div className="gallery__media" onClick={item.id === activeItemId ? closeGallery : undefined}>
+            <div className="gallery__media" onClick={(event) => handleMediaClick(event, item.id)}>
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} />}
               {item.type === 'video' && item.source && <video src={item.source} muted playsInline controls />}
             </div>

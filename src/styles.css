@@ -283,6 +283,9 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
   touch-action: pan-y;
   user-select: none;
 }
+.collage-stage--cursor-follow { touch-action: none; cursor: default; }
+.collage-stage--cursor-follow .collage-card--text { min-height: 0; padding: clamp(8px, 1.2vw, 18px); }
+.collage-stage--cursor-follow .collage-card--text p { font-size: clamp(12px, 1.2vw, 22px); }
 .collage-grid {
   position: absolute;
   top: -100%;
@@ -413,6 +416,10 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
   animation: gallery-item-in .34s cubic-bezier(.2, .8, .2, 1) both;
 }
 .gallery.is-closing .gallery__item[data-active="true"] {
+  animation: gallery-item-out .32s cubic-bezier(.2, .8, .2, 1) both;
+}
+.gallery.is-closing .gallery__item[data-closing="true"] {
+  opacity: 1;
   animation: gallery-item-out .32s cubic-bezier(.2, .8, .2, 1) both;
 }
 @keyframes gallery-backdrop-in {

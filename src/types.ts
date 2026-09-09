@@ -1,6 +1,7 @@
 export type CollageItemType = 'image' | 'video' | 'text'
 export type ScaleMode = 'priority' | 'uniform'
 export type TextCardSize = 'small' | 'medium' | 'large'
+export type InteractionMode = 'drag' | 'cursor'
 
 export interface CollageItem {
   id: string
@@ -23,7 +24,7 @@ export interface CollageSettings {
   hoverScale: number
   showGrid: boolean
   gridColor: string
-  mouseFollow: boolean
+  interactionMode: InteractionMode
   background: string
 }
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
-import type { CollageItem, CollageSettings, ScaleMode, TextCardSize } from '../types'
+import type { CollageItem, CollageSettings, InteractionMode, ScaleMode, TextCardSize } from '../types'
 import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, EyeIcon, ShuffleIcon } from './icons'
 
 interface SidebarProps {
@@ -51,6 +51,18 @@ function ScaleModeControl({ value, onChange }: { value: ScaleMode; onChange: (va
       <div className="segmented-control" aria-label="Масштаб по приоритету">
         <button className={value === 'priority' ? 'is-active' : ''} onClick={() => onChange('priority')}>От центра</button>
         <button className={value === 'uniform' ? 'is-active' : ''} onClick={() => onChange('uniform')}>Одинаковый</button>
+      </div>
+    </div>
+  )
+}
+
+function InteractionModeControl({ value, onChange }: { value: InteractionMode; onChange: (value: InteractionMode) => void }) {
+  return (
+    <div className="control-group">
+      <span className="control-label">Способ исследования</span>
+      <div className="segmented-control" aria-label="Способ исследования">
+        <button className={value === 'drag' ? 'is-active' : ''} onClick={() => onChange('drag')}>Перетаскивание</button>
+        <button className={value === 'cursor' ? 'is-active' : ''} onClick={() => onChange('cursor')}>Только мышь</button>
       </div>
     </div>
   )
@@ -233,10 +245,10 @@ export function Sidebar({
           <RangeControl label="Перекрытие по горизонтали" value={settings.horizontalOverlap} min={-50} max={150} onChange={(horizontalOverlap) => onChangeSettings({ horizontalOverlap })} />
           <RangeControl label="Перекрытие по вертикали" value={settings.verticalOverlap} min={-50} max={150} onChange={(verticalOverlap) => onChangeSettings({ verticalOverlap })} />
           <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
+          <InteractionModeControl value={settings.interactionMode} onChange={(interactionMode) => onChangeSettings({ interactionMode })} />
           <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
           <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
           <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
-          <label className="check-control"><input type="checkbox" checked={settings.mouseFollow} onChange={(event) => onChangeSettings({ mouseFollow: event.target.checked })} /><span>Следование за мышью</span></label>
           <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
           <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
         </section>
