@@ -98,7 +98,7 @@ export function App() {
         type: getMediaType(file),
         source,
         caption: '',
-        aspectRatio: 0.75,
+        aspectRatio: 1,
         isObjectUrl: true,
       } satisfies CollageItem
     })
@@ -129,6 +129,15 @@ export function App() {
 
   function handleUpdateItem(itemId: string, updates: Partial<CollageItem>) {
     setItems((currentItems) => currentItems.map((item) => item.id === itemId ? { ...item, ...updates } : item))
+  }
+
+  function handleAspectRatioChange(itemId: string, aspectRatio: number) {
+    if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return
+    setItems((currentItems) => currentItems.map((item) => (
+      item.id === itemId && Math.abs(item.aspectRatio - aspectRatio) > 0.001
+        ? { ...item, aspectRatio }
+        : item
+    )))
   }
 
   function handleRemoveItem(itemId: string) {
@@ -181,6 +190,7 @@ export function App() {
         isMobile={isMobile}
         isPreview={isPreview}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
+        onAspectRatioChange={handleAspectRatioChange}
       />
       {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
       {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}

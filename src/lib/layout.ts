@@ -36,8 +36,8 @@ export function getWorldSize(isMobile: boolean) {
 export function getCursorFollowRange(viewport: { width: number; height: number }, isMobile: boolean) {
   if (isMobile) return { x: 0, y: 0 }
   return {
-    x: Math.min(72, Math.max(24, viewport.width * 0.055)),
-    y: Math.min(54, Math.max(18, viewport.height * 0.055)),
+    x: Math.min(48, Math.max(18, viewport.width * 0.038)),
+    y: Math.min(36, Math.max(14, viewport.height * 0.038)),
   }
 }
 
@@ -59,46 +59,69 @@ function generateCursorLayout(
   const world = getWorldSize(isMobile)
   const safeViewport = viewport.width > 0 && viewport.height > 0 ? viewport : FALLBACK_VIEWPORT
   const followRange = getCursorFollowRange(safeViewport, isMobile)
-  const edgePadding = clamp(Math.min(safeViewport.width, safeViewport.height) * 0.055, 20, 56)
+  const edgePadding = clamp(Math.min(safeViewport.width, safeViewport.height) * 0.032, 14, 32)
   const usableWidth = Math.max(240, safeViewport.width - (edgePadding + followRange.x) * 2)
   const usableHeight = Math.max(180, safeViewport.height - (edgePadding + followRange.y) * 2)
   const aspect = usableWidth / usableHeight
   const total = Math.max(items.length, 1)
   const columnCount = isMobile
-    ? Math.min(3, total)
-    : clamp(Math.ceil(Math.sqrt(total * aspect)), 3, 5)
+    ? Math.min(4, total)
+    : clamp(Math.ceil(Math.sqrt(total * aspect)), 3, 9)
   const rowCount = Math.ceil(total / columnCount)
   const cellWidth = usableWidth / columnCount
   const cellHeight = usableHeight / rowCount
   const horizontalOverlap = clamp((settings.horizontalOverlap + 50) / 200, 0, 1)
   const verticalOverlap = clamp((settings.verticalOverlap + 50) / 200, 0, 1)
-  const densityScale = interpolate(0.82, 1.04, settings.density / 150)
-  const overlapScale = interpolate(0.92, 1.08, (horizontalOverlap + verticalOverlap) / 2)
+  const densityScale = interpolate(0.86, 1.22, settings.density / 150)
+  const horizontalFill = interpolate(0.7, 1.45, horizontalOverlap)
+  const verticalFill = interpolate(0.7, 1.45, verticalOverlap)
   const globalScale = settings.globalScale / 100
   const hoverScale = Math.max(1, settings.hoverScale / 100)
+  const slots = Array.from({ length: columnCount * rowCount }, (_, slotIndex) => ({
+    column: slotIndex % columnCount,
+    row: Math.floor(slotIndex / columnCount),
+    edgeDistance: Math.min(
+      slotIndex % columnCount,
+      columnCount - 1 - (slotIndex % columnCount),
+      Math.floor(slotIndex / columnCount),
+      rowCount - 1 - Math.floor(slotIndex / columnCount),
+    ),
+    noise: random(),
+  }))
+  slots.sort((first, second) => first.edgeDistance - second.edgeDistance || first.noise - second.noise)
   const layouts: Record<string, ItemLayout> = {}
 
   items.forEach((item, index) => {
-    const column = index % columnCount
-    const row = Math.floor(index / columnCount)
-    const itemAspectRatio = getItemAspectRatio(item)
+    const slot = slots[index] ?? slots[slots.length - 1]
+    const itemAspectRatio = Math.max(0.1, getItemAspectRatio(item))
     const visualWidthMultiplier = item.type === 'text' ? 1.38 : 1
-    const cellFill = clamp(0.78 * densityScale * overlapScale, 0.64, 0.94)
-    const widthLimit = Math.min(
-      cellWidth * cellFill,
-      cellHeight * itemAspectRatio * cellFill,
-    ) / visualWidthMultiplier / hoverScale
-    const priorityScale = settings.scaleMode === 'priority'
+    const desiredVisualWidth = Math.min(
+      cellWidth * horizontalFill * densityScale * globalScale,
+      cellHeight * itemAspectRatio * verticalFill * densityScale * globalScale,
+    ) * (settings.scaleMode === 'priority'
       ? interpolate(MAX_SCALE, MIN_SCALE, Math.pow(index / Math.max(total - 1, 1), 0.72))
-      : 1
-    const requestedWidth = widthLimit * globalScale * priorityScale * (0.94 + random() * 0.12)
-    const width = Math.max(18, Math.min(widthLimit, requestedWidth))
-    const jitterX = (random() - 0.5) * cellWidth * 0.18 * (1 - horizontalOverlap * 0.28)
-    const jitterY = (random() - 0.5) * cellHeight * 0.18 * (1 - verticalOverlap * 0.28)
+      : 1) * (0.88 + random() * 0.24)
+    const maxVisualWidth = Math.min(
+      usableWidth * 0.96,
+      usableHeight * itemAspectRatio * 0.96,
+      cellWidth * 1.65,
+      cellHeight * itemAspectRatio * 2.2,
+    )
+    const visualWidth = Math.min(maxVisualWidth, Math.max(18, desiredVisualWidth))
+    const width = visualWidth / visualWidthMultiplier / hoverScale
+    const visualHeight = visualWidth / itemAspectRatio
+    const baseX = world.width / 2 - usableWidth / 2 + cellWidth * (slot.column + 0.5)
+    const baseY = world.height / 2 - usableHeight / 2 + cellHeight * (slot.row + 0.5)
+    const jitterX = (random() - 0.5) * cellWidth * 0.42
+    const jitterY = (random() - 0.5) * cellHeight * 0.38
+    const minX = world.width / 2 - usableWidth / 2 + visualWidth / 2
+    const maxX = world.width / 2 + usableWidth / 2 - visualWidth / 2
+    const minY = world.height / 2 - usableHeight / 2 + visualHeight / 2
+    const maxY = world.height / 2 + usableHeight / 2 - visualHeight / 2
 
     layouts[item.id] = {
-      x: world.width / 2 - usableWidth / 2 + cellWidth * (column + 0.5) + jitterX,
-      y: world.height / 2 - usableHeight / 2 + cellHeight * (row + 0.5) + jitterY,
+      x: clamp(baseX + jitterX, minX, maxX),
+      y: clamp(baseY + jitterY, minY, maxY),
       width,
       rotation: 0,
       zIndex: items.length - index,

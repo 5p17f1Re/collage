@@ -331,7 +331,7 @@ button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(-
   button.collage-card:hover { z-index: 100 !important; --card-scale: var(--hover-scale, 1.24); outline: 0; }
 }
 .collage-card img,
-.collage-card video { width: 100%; height: 100%; display: block; object-fit: cover; background: oklch(0.69 0 0); pointer-events: none; }
+.collage-card video { width: 100%; height: 100%; display: block; object-fit: contain; background: oklch(0.69 0 0); pointer-events: none; }
 .collage-card--video::before {
   position: absolute;
   top: 50%;

@@ -14,6 +14,7 @@ interface CollageStageProps {
   isMobile: boolean
   isPreview: boolean
   onOpenGallery: (itemId: string, origin: { x: number; y: number }) => void
+  onAspectRatioChange: (itemId: string, aspectRatio: number) => void
 }
 
 function getItemAspectRatio(item: CollageItem) {
@@ -23,7 +24,7 @@ function getItemAspectRatio(item: CollageItem) {
   return 1.42
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpenGallery }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -192,8 +193,14 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
 
           return (
             <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Открыть галерею: ${item.name}`}>
-              {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} />}
-              {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} />}
+              {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} onLoad={(event) => {
+                const image = event.currentTarget
+                onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)
+              }} />}
+              {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} onLoadedMetadata={(event) => {
+                const video = event.currentTarget
+                onAspectRatioChange(item.id, video.videoWidth / video.videoHeight)
+              }} />}
             </button>
           )
         }))}
