@@ -62,6 +62,19 @@ function shuffleItems(items: CollageItem[]) {
   return shuffledItems
 }
 
+function StoryMediaSection({ position, images, onAddFiles }: { position: 'top' | 'bottom'; images: string[]; onAddFiles: (files: File[]) => void }) {
+  const label = position === 'top' ? 'Материалы перед историей' : 'Материалы после истории'
+  return (
+    <section className={`story-media story-media--${position}`} aria-label={label}>
+      {images.length > 0 ? <div className="story-media__images">{images.map((source) => <img key={source} src={source} alt="Материал истории" />)}</div> : <div className="story-media__empty">Сюда можно добавить изображения для вертикального пролога или эпилога.</div>}
+      <label className="story-media__upload">
+        <input className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => { onAddFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = '' }} />
+        Добавить изображения
+      </label>
+    </section>
+  )
+}
+
 export function App() {
   const [items, setItems] = useState<CollageItem[]>(() => SAMPLE_ITEMS.map((item) => ({ ...item })))
   const [settings, setSettings] = useState<CollageSettings>(INITIAL_SETTINGS)
@@ -69,6 +82,7 @@ export function App() {
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
+  const [storyImages, setStoryImages] = useState({ top: [] as string[], bottom: [] as string[] })
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
@@ -154,10 +168,34 @@ export function App() {
     setSeed((currentSeed) => currentSeed + 1)
   }
 
+  function handleAddStoryFiles(position: 'top' | 'bottom', files: File[]) {
+    const sources = files.filter((file) => file.type.startsWith('image/')).map((file) => {
+      const source = URL.createObjectURL(file)
+      objectUrlsRef.current.add(source)
+      return source
+    })
+    if (sources.length) setStoryImages((current) => ({ ...current, [position]: [...current[position], ...sources] }))
+  }
+
+  if (isPreview) {
+    return (
+      <>
+        <div className="story-preview">
+          <StoryMediaSection position="top" images={storyImages.top} onAddFiles={(files) => handleAddStoryFiles('top', files)} />
+          <section className="story-preview__interactive" aria-label="Интерактивная история">
+            <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
+          </section>
+          <StoryMediaSection position="bottom" images={storyImages.bottom} onAddFiles={(files) => handleAddStoryFiles('bottom', files)} />
+        </div>
+        <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>
+        {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
+      </>
+    )
+  }
+
   return (
-    <div className={`app-shell ${isPreview ? 'app-shell--preview' : ''}`}>
-      {!isPreview && (
-        <Sidebar
+    <div className="app-shell">
+      <Sidebar
           items={items}
           selectedItem={selectedItem}
           settings={settings}
@@ -182,18 +220,16 @@ export function App() {
           }}
           onPreview={() => setIsPreview(true)}
           isSettingsOpen={true}
-        />
-      )}
+      />
       <CollageStage
         items={items}
         settings={settings}
         seed={seed}
         isMobile={isMobile}
-        isPreview={isPreview}
+        isPreview={false}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
         onAspectRatioChange={handleAspectRatioChange}
       />
-      {isPreview && <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>}
       {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
     </div>
   )
