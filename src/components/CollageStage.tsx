@@ -34,6 +34,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     ? stageSize
     : isMobile ? { width: 390, height: 320 } : { width: 1200, height: 800 }, [isMobile, stageSize])
   const isCursorMode = settings.interactionMode === 'cursor'
+  const heroItemId = settings.heroEnabled && items[0]?.type !== 'text' ? items[0]?.id : undefined
   const followRange = getCursorFollowRange(viewport, isMobile)
   const layouts = useMemo(
     () => generateLayout(items, settings, seed, isMobile, { viewport }),
@@ -164,14 +165,16 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       <div className="collage-stage__hint" aria-hidden="true">{isCursorMode ? 'Ведите мышью, чтобы исследовать' : isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
       <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
         {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
-        {[-1, 0, 1].flatMap((copyOffset) => items.map((item) => {
+        {(isCursorMode ? [0] : [-1, 0, 1]).flatMap((copyOffset) => items.map((item) => {
           const layout = layouts[item.id]
           const aspectRatio = getItemAspectRatio(item)
           const left = layout.x + copyOffset * world.width
+          const isHero = item.id === heroItemId
           const cardStyle = {
             left,
             top: layout.y,
             width: layout.width,
+            height: layout.height,
             zIndex: layout.zIndex,
             transform: `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--card-scale, 1))`,
             aspectRatio: String(aspectRatio),
@@ -185,14 +188,14 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
 
           if (item.type === 'text') {
             return (
-              <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'}`} style={cardStyle as CSSProperties}>
+              <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'} ${isHero ? 'collage-card--hero' : ''}`} style={cardStyle as CSSProperties}>
                 <p>{item.text || 'Напишите текст'}</p>
               </article>
             )
           }
 
           return (
-            <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Открыть галерею: ${item.name}`}>
+            <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Открыть галерею: ${item.name}`} data-hero={isHero || undefined}>
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} onLoad={(event) => {
                 const image = event.currentTarget
                 onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)

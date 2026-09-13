@@ -25,6 +25,7 @@ export interface CollageSettings {
   showGrid: boolean
   gridColor: string
   interactionMode: InteractionMode
+  heroEnabled: boolean
   background: string
 }
 
@@ -32,6 +33,7 @@ export interface ItemLayout {
   x: number
   y: number
   width: number
+  height?: number
   rotation: number
   zIndex: number
 }

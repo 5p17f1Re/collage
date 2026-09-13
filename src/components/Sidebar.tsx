@@ -68,12 +68,25 @@ function InteractionModeControl({ value, onChange }: { value: InteractionMode; o
   )
 }
 
+function HeroControl({ enabled, onChange }: { enabled: boolean; onChange: (enabled: boolean) => void }) {
+  return (
+    <div className="control-group">
+      <span className="control-label">Главный элемент</span>
+      <button className={`hero-toggle ${enabled ? 'is-active' : ''}`} type="button" onClick={() => onChange(!enabled)} aria-pressed={enabled}>
+        <span>{enabled ? 'Включён' : 'Выключен'}</span>
+        <small>Первый материал в центре</small>
+      </button>
+    </div>
+  )
+}
+
 function ItemRow({
   item,
   index,
   isSelected,
   isFirst,
   isLast,
+  isHero,
   onSelect,
   onMove,
   onReorder,
@@ -84,6 +97,7 @@ function ItemRow({
   isSelected: boolean
   isFirst: boolean
   isLast: boolean
+  isHero: boolean
   onSelect: () => void
   onMove: (direction: -1 | 1) => void
   onReorder: (sourceId: string, targetId: string) => void
@@ -105,7 +119,7 @@ function ItemRow({
 
   return (
     <div
-      className={`item-row ${isSelected ? 'is-selected' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      className={`item-row ${isSelected ? 'is-selected' : ''} ${isDragging ? 'is-dragging' : ''} ${isHero ? 'item-row--hero' : ''}`}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={() => setIsDragging(false)}
@@ -119,7 +133,10 @@ function ItemRow({
           {item.type === 'video' && <span>▶</span>}
           {item.type === 'text' && <span>T</span>}
         </span>
-        <span className="item-row__name">{item.type === 'text' ? item.text || 'Текстовый блок' : item.name}</span>
+        <span className="item-row__name-group">
+          <span className="item-row__name">{item.type === 'text' ? item.text || 'Текстовый блок' : item.name}</span>
+          {isHero && <span className="item-row__hero-label">Главный</span>}
+        </span>
       </button>
       <span className="item-row__actions">
         <button className="icon-button icon-button--tiny" onClick={() => onMove(-1)} disabled={isFirst} aria-label="Поднять в списке"><ArrowUpIcon /></button>
@@ -216,6 +233,7 @@ export function Sidebar({
               isSelected={selectedItem?.id === item.id}
               isFirst={index === 0}
               isLast={index === items.length - 1}
+              isHero={settings.heroEnabled && index === 0 && item.type !== 'text'}
               onSelect={() => onSelectItem(item.id)}
               onMove={(direction) => onMoveItem(item.id, direction)}
               onReorder={onReorderItems}
@@ -246,6 +264,7 @@ export function Sidebar({
           <RangeControl label="Перекрытие по вертикали" value={settings.verticalOverlap} min={-50} max={150} onChange={(verticalOverlap) => onChangeSettings({ verticalOverlap })} />
           <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
           <InteractionModeControl value={settings.interactionMode} onChange={(interactionMode) => onChangeSettings({ interactionMode })} />
+          <HeroControl enabled={settings.heroEnabled} onChange={(heroEnabled) => onChangeSettings({ heroEnabled })} />
           <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
           <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
           <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>

@@ -8,6 +8,10 @@ const MAX_CARD_WIDTH = 520
 const MIN_SCALE = 0.65
 const MAX_SCALE = 1.28
 const FALLBACK_VIEWPORT = { width: 1200, height: 800 }
+const MAX_EDGE_CLIP = 0.4
+// At a corner the horizontal and vertical clipping multiply. Keeping at least
+// sqrt(60%) on each axis guarantees that the card remains at least 60% visible.
+const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0
@@ -36,8 +40,8 @@ export function getWorldSize(isMobile: boolean) {
 export function getCursorFollowRange(viewport: { width: number; height: number }, isMobile: boolean) {
   if (isMobile) return { x: 0, y: 0 }
   return {
-    x: Math.min(48, Math.max(18, viewport.width * 0.038)),
-    y: Math.min(36, Math.max(14, viewport.height * 0.038)),
+    x: Math.min(144, Math.max(68, viewport.width * 0.12)),
+    y: Math.min(108, Math.max(50, viewport.height * 0.12)),
   }
 }
 
@@ -46,6 +50,71 @@ function getItemAspectRatio(item: CollageItem) {
   if (item.textSize === 'small') return 1.3
   if (item.textSize === 'large') return 1.56
   return 1.42
+}
+
+function getHeroItem(items: CollageItem[], settings: CollageSettings) {
+  const firstItem = items[0]
+  return settings.heroEnabled && firstItem?.type !== 'text' ? firstItem : undefined
+}
+
+function getCursorBounds(
+  viewport: { width: number; height: number },
+  width: number,
+  height: number,
+  followRange: { x: number; y: number },
+) {
+  const clipX = Math.min(MAX_CORNER_AXIS_CLIP, followRange.x / Math.max(width, 1) * 0.94)
+  const clipY = Math.min(MAX_CORNER_AXIS_CLIP, followRange.y / Math.max(height, 1) * 0.94)
+  const minX = width * (0.5 - clipX)
+  const minY = height * (0.5 - clipY)
+
+  return {
+    minX,
+    maxX: Math.max(minX, viewport.width - minX),
+    minY,
+    maxY: Math.max(minY, viewport.height - minY),
+  }
+}
+
+function createCursorSlots(
+  viewport: { width: number; height: number },
+  heroWidth: number,
+  heroHeight: number,
+  count: number,
+  horizontalOverlap: number,
+  verticalOverlap: number,
+  random: () => number,
+) {
+  const aspect = viewport.width / viewport.height
+  const columns = clamp(Math.ceil(Math.sqrt(Math.max(count, 1) * aspect)) + 3, 6, 13)
+  const rows = clamp(Math.ceil(Math.max(count, 1) / columns) + 3, 5, 10)
+  const heroHalfWidth = heroWidth / viewport.width / 2
+  const heroHalfHeight = heroHeight / viewport.height / 2
+  const slots: Array<{ x: number; y: number; distance: number; isCorner: boolean; noise: number }> = []
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const rawX = columns === 1 ? 0.5 : column / (columns - 1)
+      const rawY = rows === 1 ? 0.5 : row / (rows - 1)
+      const isCorner = (column === 0 || column === columns - 1) && (row === 0 || row === rows - 1)
+      const insideHero = Math.abs(rawX - 0.5) < heroHalfWidth * 0.84 && Math.abs(rawY - 0.5) < heroHalfHeight * 0.84
+      if (insideHero) continue
+
+      const xCompression = isCorner ? 1 : interpolate(1.08, 0.76, horizontalOverlap)
+      const yCompression = isCorner ? 1 : interpolate(1.08, 0.76, verticalOverlap)
+      const x = 0.5 + (rawX - 0.5) * xCompression
+      const y = 0.5 + (rawY - 0.5) * yCompression
+      slots.push({
+        x,
+        y,
+        distance: Math.hypot(x - 0.5, y - 0.5),
+        isCorner,
+        noise: random(),
+      })
+    }
+  }
+
+  return slots
 }
 
 function generateCursorLayout(
@@ -59,70 +128,76 @@ function generateCursorLayout(
   const world = getWorldSize(isMobile)
   const safeViewport = viewport.width > 0 && viewport.height > 0 ? viewport : FALLBACK_VIEWPORT
   const followRange = getCursorFollowRange(safeViewport, isMobile)
-  const edgePadding = clamp(Math.min(safeViewport.width, safeViewport.height) * 0.032, 14, 32)
-  const usableWidth = Math.max(240, safeViewport.width - (edgePadding + followRange.x) * 2)
-  const usableHeight = Math.max(180, safeViewport.height - (edgePadding + followRange.y) * 2)
-  const aspect = usableWidth / usableHeight
-  const total = Math.max(items.length, 1)
-  const columnCount = isMobile
-    ? Math.min(4, total)
-    : clamp(Math.ceil(Math.sqrt(total * aspect)), 3, 9)
-  const rowCount = Math.ceil(total / columnCount)
-  const cellWidth = usableWidth / columnCount
-  const cellHeight = usableHeight / rowCount
   const horizontalOverlap = clamp((settings.horizontalOverlap + 50) / 200, 0, 1)
   const verticalOverlap = clamp((settings.verticalOverlap + 50) / 200, 0, 1)
-  const densityScale = interpolate(0.86, 1.22, settings.density / 150)
-  const horizontalFill = interpolate(0.7, 1.45, horizontalOverlap)
-  const verticalFill = interpolate(0.7, 1.45, verticalOverlap)
+  const densityScale = interpolate(0.76, 1.16, settings.density / 150)
+  const verticalFill = interpolate(0.72, 1.4, verticalOverlap)
   const globalScale = settings.globalScale / 100
   const hoverScale = Math.max(1, settings.hoverScale / 100)
-  const slots = Array.from({ length: columnCount * rowCount }, (_, slotIndex) => ({
-    column: slotIndex % columnCount,
-    row: Math.floor(slotIndex / columnCount),
-    edgeDistance: Math.min(
-      slotIndex % columnCount,
-      columnCount - 1 - (slotIndex % columnCount),
-      Math.floor(slotIndex / columnCount),
-      rowCount - 1 - Math.floor(slotIndex / columnCount),
-    ),
-    noise: random(),
-  }))
-  slots.sort((first, second) => first.edgeDistance - second.edgeDistance || first.noise - second.noise)
+  const heroItem = getHeroItem(items, settings)
+  const secondaryItems = heroItem ? items.filter((item) => item.id !== heroItem.id) : items
+  const mediaCount = Math.max(secondaryItems.filter((item) => item.type !== 'text').length, 1)
+  const aspect = safeViewport.width / safeViewport.height
+  const rowCount = clamp(Math.ceil(Math.sqrt(mediaCount / aspect)), 3, 8)
+  const secondaryHeight = clamp(
+    safeViewport.height / rowCount * densityScale * verticalFill * globalScale / hoverScale,
+    42,
+    safeViewport.height * 0.31,
+  )
+  const heroAspectRatio = heroItem ? Math.max(0.1, getItemAspectRatio(heroItem)) : 0
+  const heroTargetHeight = safeViewport.height * 0.6
+  const heroWidth = heroItem
+    ? Math.min(heroTargetHeight * heroAspectRatio, safeViewport.width * 0.78)
+    : 0
+  const heroHeight = heroItem ? heroWidth / heroAspectRatio : 0
+  const slots = createCursorSlots(
+    safeViewport,
+    heroWidth,
+    heroHeight,
+    secondaryItems.length,
+    horizontalOverlap,
+    verticalOverlap,
+    random,
+  )
+  const corners = slots.filter((slot) => slot.isCorner).sort((first, second) => first.noise - second.noise)
+  const innerSlots = slots.filter((slot) => !slot.isCorner).sort((first, second) => first.distance - second.distance || first.noise - second.noise)
   const layouts: Record<string, ItemLayout> = {}
 
-  items.forEach((item, index) => {
-    const slot = slots[index] ?? slots[slots.length - 1]
+  if (heroItem) {
+    layouts[heroItem.id] = {
+      x: world.width / 2,
+      y: world.height / 2,
+      width: heroWidth,
+      height: heroHeight,
+      rotation: 0,
+      zIndex: items.length + 100,
+    }
+  }
+
+  secondaryItems.forEach((item, index) => {
+    const isText = item.type === 'text'
     const itemAspectRatio = Math.max(0.1, getItemAspectRatio(item))
-    const visualWidthMultiplier = item.type === 'text' ? 1.38 : 1
-    const desiredVisualWidth = Math.min(
-      cellWidth * horizontalFill * densityScale * globalScale,
-      cellHeight * itemAspectRatio * verticalFill * densityScale * globalScale,
-    ) * (settings.scaleMode === 'priority'
-      ? interpolate(MAX_SCALE, MIN_SCALE, Math.pow(index / Math.max(total - 1, 1), 0.72))
-      : 1) * (0.88 + random() * 0.24)
-    const maxVisualWidth = Math.min(
-      usableWidth * 0.96,
-      usableHeight * itemAspectRatio * 0.96,
-      cellWidth * 1.65,
-      cellHeight * itemAspectRatio * 2.2,
-    )
-    const visualWidth = Math.min(maxVisualWidth, Math.max(18, desiredVisualWidth))
-    const width = visualWidth / visualWidthMultiplier / hoverScale
-    const visualHeight = visualWidth / itemAspectRatio
-    const baseX = world.width / 2 - usableWidth / 2 + cellWidth * (slot.column + 0.5)
-    const baseY = world.height / 2 - usableHeight / 2 + cellHeight * (slot.row + 0.5)
-    const jitterX = (random() - 0.5) * cellWidth * 0.42
-    const jitterY = (random() - 0.5) * cellHeight * 0.38
-    const minX = world.width / 2 - usableWidth / 2 + visualWidth / 2
-    const maxX = world.width / 2 + usableWidth / 2 - visualWidth / 2
-    const minY = world.height / 2 - usableHeight / 2 + visualHeight / 2
-    const maxY = world.height / 2 + usableHeight / 2 - visualHeight / 2
+    const priorityScale = heroItem || settings.scaleMode === 'uniform'
+      ? 1
+      : interpolate(MAX_SCALE, MIN_SCALE, Math.pow(index / Math.max(secondaryItems.length - 1, 1), 0.72))
+    const height = secondaryHeight * priorityScale * (isText ? 1.14 : 1)
+    const width = height * itemAspectRatio * (isText ? 1.1 : 1)
+    const isPeripheralItem = index >= secondaryItems.length - Math.min(corners.length, 4)
+    const cornerIndex = index - (secondaryItems.length - Math.min(corners.length, 4))
+    const slot = isPeripheralItem
+      ? corners[cornerIndex] ?? innerSlots[index % innerSlots.length]
+      : innerSlots[index] ?? corners[index % corners.length]
+    const bounds = getCursorBounds(safeViewport, width, height, followRange)
+    const jitterX = (random() - 0.5) * safeViewport.width / Math.max(10, mediaCount) * 1.7
+    const jitterY = (random() - 0.5) * safeViewport.height / Math.max(10, mediaCount) * 1.35
+    const x = clamp(slot.x * safeViewport.width + jitterX, bounds.minX, bounds.maxX)
+    const y = clamp(slot.y * safeViewport.height + jitterY, bounds.minY, bounds.maxY)
 
     layouts[item.id] = {
-      x: clamp(baseX + jitterX, minX, maxX),
-      y: clamp(baseY + jitterY, minY, maxY),
+      x: world.width / 2 - safeViewport.width / 2 + x,
+      y: world.height / 2 - safeViewport.height / 2 + y,
       width,
+      height,
       rotation: 0,
       zIndex: items.length - index,
     }
