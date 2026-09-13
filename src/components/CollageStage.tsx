@@ -195,7 +195,19 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
           }
 
           return (
-            <button key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''}`} style={cardStyle as CSSProperties} onClick={focusCard} aria-label={`Открыть галерею: ${item.name}`} data-hero={isHero || undefined}>
+            <button
+              key={`${copyOffset}-${item.id}`}
+              className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''}`}
+              style={cardStyle as CSSProperties}
+              onPointerMove={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect()
+                event.currentTarget.style.setProperty('--reveal-x', `${(event.clientX - bounds.left) / bounds.width * 100}%`)
+                event.currentTarget.style.setProperty('--reveal-y', `${(event.clientY - bounds.top) / bounds.height * 100}%`)
+              }}
+              onClick={focusCard}
+              aria-label={`Открыть галерею: ${item.name}`}
+              data-hero={isHero || undefined}
+            >
               {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} onLoad={(event) => {
                 const image = event.currentTarget
                 onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)

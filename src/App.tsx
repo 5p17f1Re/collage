@@ -18,6 +18,7 @@ const INITIAL_SETTINGS: CollageSettings = {
   gridColor: '#4a4a4a',
   interactionMode: 'drag',
   heroEnabled: false,
+  heroScale: 100,
   background: '#ffffff',
 }
 

@@ -26,6 +26,7 @@ export interface CollageSettings {
   gridColor: string
   interactionMode: InteractionMode
   heroEnabled: boolean
+  heroScale: number
   background: string
 }
 

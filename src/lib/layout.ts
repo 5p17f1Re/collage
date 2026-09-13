@@ -146,9 +146,9 @@ function generateScrapbookLayout(
     safeViewport.height * 0.31,
   )
   const heroAspectRatio = heroItem ? Math.max(0.1, getItemAspectRatio(heroItem)) : 0
-  const heroTargetHeight = safeViewport.height * 0.6
+  const heroTargetHeight = safeViewport.height * 0.6 * (settings.heroScale / 100)
   const heroWidth = heroItem
-    ? Math.min(heroTargetHeight * heroAspectRatio, safeViewport.width * 0.78)
+    ? Math.min(heroTargetHeight * heroAspectRatio, safeViewport.width * 0.92)
     : 0
   const heroHeight = heroItem ? heroWidth / heroAspectRatio : 0
   const slots = createScrapbookSlots(

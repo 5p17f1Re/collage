@@ -334,9 +334,18 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
 .collage-card--hero { z-index: 200 !important; }
 button.collage-card { padding: 0; cursor: zoom-in; }
 button.collage-card:active { cursor: grabbing; }
-button.collage-card:focus-visible { z-index: 100 !important; --card-scale: var(--hover-scale, 1.24); outline: 0; }
+button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(--hover-scale, 1.24); outline: 0; }
 @media (hover: hover) {
-  button.collage-card:hover { z-index: 100 !important; --card-scale: var(--hover-scale, 1.24); outline: 0; }
+  button.collage-card:hover {
+    z-index: 300 !important;
+    --card-scale: var(--hover-scale, 1.24);
+    outline: 0;
+    animation: card-seep-in .22s cubic-bezier(.16, 1, .3, 1) both;
+  }
+}
+@keyframes card-seep-in {
+  from { clip-path: circle(0% at var(--reveal-x, 50%) var(--reveal-y, 50%)); opacity: .78; }
+  to { clip-path: circle(150% at var(--reveal-x, 50%) var(--reveal-y, 50%)); opacity: 1; }
 }
 .collage-card img,
 .collage-card video { width: 100%; height: 100%; display: block; object-fit: contain; background: oklch(0.69 0 0); pointer-events: none; }
