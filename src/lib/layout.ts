@@ -118,6 +118,41 @@ function createScrapbookSlots(
   return slots
 }
 
+function selectEvenlyDistributedSlots<T extends { x: number; y: number; noise: number }>(slots: T[], count: number) {
+  if (count >= slots.length) return slots
+  const selected: T[] = []
+  const remaining = [...slots]
+
+  while (selected.length < count && remaining.length) {
+    let bestIndex = 0
+    let bestScore = -Infinity
+    remaining.forEach((slot, index) => {
+      const nearestDistance = selected.length
+        ? Math.min(...selected.map((other) => Math.hypot(slot.x - other.x, slot.y - other.y)))
+        : 1
+      const score = nearestDistance + slot.noise * 0.08
+      if (score > bestScore) {
+        bestScore = score
+        bestIndex = index
+      }
+    })
+    selected.push(remaining.splice(bestIndex, 1)[0])
+  }
+
+  return selected
+}
+
+function getOverlapRatio(x: number, y: number, width: number, height: number, heroWidth: number, heroHeight: number, viewport: { width: number; height: number }) {
+  if (!heroWidth || !heroHeight) return 0
+  const heroLeft = (viewport.width - heroWidth) / 2
+  const heroTop = (viewport.height - heroHeight) / 2
+  const left = x - width / 2
+  const top = y - height / 2
+  const overlapWidth = Math.max(0, Math.min(left + width, heroLeft + heroWidth) - Math.max(left, heroLeft))
+  const overlapHeight = Math.max(0, Math.min(top + height, heroTop + heroHeight) - Math.max(top, heroTop))
+  return overlapWidth * overlapHeight / Math.max(width * height, 1)
+}
+
 function generateScrapbookLayout(
   items: CollageItem[],
   settings: CollageSettings,
@@ -160,7 +195,7 @@ function generateScrapbookLayout(
     verticalOverlap,
     random,
   )
-  const shuffledSlots = [...slots].sort((first, second) => first.noise - second.noise)
+  const distributedSlots = selectEvenlyDistributedSlots(slots, secondaryItems.length)
   const layouts: Record<string, ItemLayout> = {}
 
   if (heroItem) {
@@ -182,12 +217,22 @@ function generateScrapbookLayout(
       : interpolate(MAX_SCALE, MIN_SCALE, Math.pow(index / Math.max(secondaryItems.length - 1, 1), 0.72))
     const height = secondaryHeight * priorityScale * (isText ? 1.14 : 1)
     const width = height * itemAspectRatio * (isText ? 1.1 : 1)
-    const slot = shuffledSlots[index % shuffledSlots.length]
+    const slot = distributedSlots[index % distributedSlots.length]
     const bounds = getCursorBounds(safeViewport, width, height, followRange)
     const jitterX = (random() - 0.5) * safeViewport.width / Math.max(10, mediaCount) * 1.7
     const jitterY = (random() - 0.5) * safeViewport.height / Math.max(10, mediaCount) * 1.35
-    const x = clamp(slot.x * safeViewport.width + jitterX, bounds.minX, bounds.maxX)
-    const y = clamp(slot.y * safeViewport.height + jitterY, bounds.minY, bounds.maxY)
+    let x = clamp(slot.x * safeViewport.width + jitterX, bounds.minX, bounds.maxX)
+    let y = clamp(slot.y * safeViewport.height + jitterY, bounds.minY, bounds.maxY)
+
+    // A secondary card can enter the hero zone, but never lose more than 40%
+    // of its own area behind it. Nudge it outwards until the limit holds.
+    for (let attempt = 0; heroItem && getOverlapRatio(x, y, width, height, heroWidth, heroHeight, safeViewport) > 0.4 && attempt < 12; attempt += 1) {
+      const dx = x - safeViewport.width / 2 || (random() - 0.5)
+      const dy = y - safeViewport.height / 2 || (random() - 0.5)
+      const magnitude = Math.hypot(dx, dy) || 1
+      x = clamp(x + dx / magnitude * 28, bounds.minX, bounds.maxX)
+      y = clamp(y + dy / magnitude * 28, bounds.minY, bounds.maxY)
+    }
 
     layouts[item.id] = {
       x: world.width / 2 - safeViewport.width / 2 + x,

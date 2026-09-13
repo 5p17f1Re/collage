@@ -265,7 +265,7 @@ export function Sidebar({
           <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
           <InteractionModeControl value={settings.interactionMode} onChange={(interactionMode) => onChangeSettings({ interactionMode })} />
           <HeroControl enabled={settings.heroEnabled} onChange={(heroEnabled) => onChangeSettings({ heroEnabled })} />
-          {settings.heroEnabled && <RangeControl label="Масштаб главного" value={settings.heroScale} min={80} max={180} onChange={(heroScale) => onChangeSettings({ heroScale })} />}
+          {settings.heroEnabled && <RangeControl label="Масштаб главного" value={settings.heroScale} min={40} max={120} onChange={(heroScale) => onChangeSettings({ heroScale })} />}
           <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
           <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
           <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
