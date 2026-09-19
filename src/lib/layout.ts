@@ -12,6 +12,9 @@ const MAX_EDGE_CLIP = 0.4
 // At a corner the horizontal and vertical clipping multiply. Keeping at least
 // sqrt(60%) on each axis guarantees that the card remains at least 60% visible.
 const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
+export const PANORAMA_HEIGHT = 720
+const PANORAMA_VERTICAL_OVERFLOW = 160
+const PANORAMA_GAP = 14
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0
@@ -255,4 +258,212 @@ export function generateLayout(
   options?: { viewport?: { width: number; height: number } },
 ): Record<string, ItemLayout> {
   return generateScrapbookLayout(items, settings, seed, isMobile, options?.viewport ?? FALLBACK_VIEWPORT)
+}
+
+interface Rectangle {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface PanoramaLayoutResult {
+  layouts: Record<string, ItemLayout>
+  world: { width: number; height: number }
+}
+
+function rectanglesIntersect(first: Rectangle, second: Rectangle) {
+  return first.x < second.x + second.width
+    && first.x + first.width > second.x
+    && first.y < second.y + second.height
+    && first.y + first.height > second.y
+}
+
+function pruneFreeRectangles(rectangles: Rectangle[]) {
+  return rectangles.filter((rectangle, index) => rectangle.width > 0.01 && rectangle.height > 0.01 && !rectangles.some((other, otherIndex) => (
+    index !== otherIndex
+    && rectangle.x >= other.x
+    && rectangle.y >= other.y
+    && rectangle.x + rectangle.width <= other.x + other.width
+    && rectangle.y + rectangle.height <= other.y + other.height
+  )))
+}
+
+function subtractUsedRectangle(freeRectangles: Rectangle[], used: Rectangle) {
+  const next: Rectangle[] = []
+
+  freeRectangles.forEach((free) => {
+    if (!rectanglesIntersect(free, used)) {
+      next.push(free)
+      return
+    }
+
+    const freeRight = free.x + free.width
+    const freeBottom = free.y + free.height
+    const usedRight = used.x + used.width
+    const usedBottom = used.y + used.height
+
+    if (used.x > free.x) next.push({ x: free.x, y: free.y, width: used.x - free.x, height: free.height })
+    if (usedRight < freeRight) next.push({ x: usedRight, y: free.y, width: freeRight - usedRight, height: free.height })
+    if (used.y > free.y) next.push({ x: free.x, y: free.y, width: free.width, height: used.y - free.y })
+    if (usedBottom < freeBottom) next.push({ x: free.x, y: usedBottom, width: free.width, height: freeBottom - usedBottom })
+  })
+
+  return pruneFreeRectangles(next)
+}
+
+function getPanoramaGroupAssignments(items: CollageItem[], groupCount: number, seed: number) {
+  const assignments = new Map<string, number>()
+  const automaticItems = items.slice(1).filter((item) => !item.sizeGroup)
+  const random = createSeededRandom(seed + 41)
+
+  automaticItems
+    .map((item) => ({ item, order: random() }))
+    .sort((first, second) => first.order - second.order)
+    .forEach(({ item }, index) => assignments.set(item.id, index % groupCount))
+
+  items.slice(1).forEach((item) => {
+    if (item.sizeGroup) assignments.set(item.id, clamp(Math.round(item.sizeGroup), 1, groupCount) - 1)
+  })
+
+  return assignments
+}
+
+function getPanoramaItemHeight(
+  baseHeight: number,
+  group: number,
+  groupCount: number,
+  groupContrast: number,
+  isHero: boolean,
+) {
+  const contrast = clamp(groupContrast, 0, 100) / 100
+  const smallestGroupFactor = interpolate(1, 0.4, contrast)
+  const groupFactor = groupCount === 1 ? 1 : interpolate(smallestGroupFactor, 1, group / (groupCount - 1))
+  // The first item is a spatial anchor, not a member of a size group.
+  return baseHeight * (isHero ? 1.65 : groupFactor)
+}
+
+function placeInFreeRectangles(
+  freeRectangles: Rectangle[],
+  width: number,
+  height: number,
+  desiredX: number,
+  desiredY: number,
+) {
+  let best: { rectangle: Rectangle; score: number } | undefined
+
+  freeRectangles.forEach((free) => {
+    if (width > free.width || height > free.height) return
+    const x = clamp(desiredX - width / 2, free.x, free.x + free.width - width)
+    const y = clamp(desiredY - height / 2, free.y, free.y + free.height - height)
+    const centreDistance = Math.hypot(x + width / 2 - desiredX, y + height / 2 - desiredY)
+    const leftoverArea = free.width * free.height - width * height
+    const score = centreDistance + leftoverArea / 100000
+    if (!best || score < best.score) best = { rectangle: { x, y, width, height }, score }
+  })
+
+  return best?.rectangle
+}
+
+function tryPackPanorama(
+  items: CollageItem[],
+  world: { width: number; height: number },
+  groupCount: number,
+  groupContrast: number,
+  seed: number,
+  scale: number,
+) {
+  if (!items.length) return {} as Record<string, ItemLayout>
+
+  const hero = items[0]
+  const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
+  const baseHeight = clamp(Math.min(world.height * 0.28, world.width * 0.125), 72, 220) * scale
+  const heroHeight = getPanoramaItemHeight(baseHeight, groupCount - 1, groupCount, groupContrast, true)
+  const heroWidth = heroHeight * Math.max(0.1, getItemAspectRatio(hero))
+  const heroOuter: Rectangle = {
+    x: (world.width - heroWidth - PANORAMA_GAP) / 2,
+    y: (world.height - heroHeight - PANORAMA_GAP) / 2,
+    width: heroWidth + PANORAMA_GAP,
+    height: heroHeight + PANORAMA_GAP,
+  }
+
+  if (heroOuter.x < 0 || heroOuter.y < 0 || heroOuter.x + heroOuter.width > world.width || heroOuter.y + heroOuter.height > world.height) return undefined
+
+  const layouts: Record<string, ItemLayout> = {
+    [hero.id]: {
+      x: heroOuter.x + PANORAMA_GAP / 2 + heroWidth / 2,
+      y: heroOuter.y + PANORAMA_GAP / 2 + heroHeight / 2,
+      width: heroWidth,
+      height: heroHeight,
+      rotation: 0,
+      zIndex: items.length + 100,
+    },
+  }
+  let freeRectangles = subtractUsedRectangle([{ x: 0, y: 0, width: world.width, height: world.height }], heroOuter)
+  const random = createSeededRandom(seed + 103)
+  const secondary = items.slice(1)
+    .map((item) => ({ item, group: assignments.get(item.id) ?? 0, noise: random() }))
+    .sort((first, second) => second.group - first.group || first.noise - second.noise)
+
+  for (const [index, entry] of secondary.entries()) {
+    const height = getPanoramaItemHeight(baseHeight, entry.group, groupCount, groupContrast, false)
+    const width = height * Math.max(0.1, getItemAspectRatio(entry.item))
+    const outerWidth = width + PANORAMA_GAP
+    const outerHeight = height + PANORAMA_GAP
+    const placed = placeInFreeRectangles(
+      freeRectangles,
+      outerWidth,
+      outerHeight,
+      random() * world.width,
+      random() * world.height,
+    )
+    if (!placed) return undefined
+
+    layouts[entry.item.id] = {
+      x: placed.x + PANORAMA_GAP / 2 + width / 2,
+      y: placed.y + PANORAMA_GAP / 2 + height / 2,
+      width,
+      height,
+      rotation: 0,
+      zIndex: items.length - index,
+    }
+    freeRectangles = subtractUsedRectangle(freeRectangles, placed)
+  }
+
+  return layouts
+}
+
+export function getPanoramaWorldSize(viewportWidth: number, spanPercent: number) {
+  const safeViewportWidth = Math.max(1, viewportWidth || FALLBACK_VIEWPORT.width)
+  return {
+    width: safeViewportWidth * clamp(spanPercent, 50, 150) / 50,
+    height: PANORAMA_HEIGHT + PANORAMA_VERTICAL_OVERFLOW,
+  }
+}
+
+export function generatePanoramaLayout(
+  items: CollageItem[],
+  settings: CollageSettings,
+  seed: number,
+  viewportWidth: number,
+): PanoramaLayoutResult {
+  const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
+  const groupContrast = clamp(settings.panorama.groupContrast, 0, 100)
+  const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent)
+  let layout: Record<string, ItemLayout> | undefined
+  let low = 0.02
+  let high = 4
+
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    const scale = (low + high) / 2
+    const candidate = tryPackPanorama(items, world, groupCount, groupContrast, seed, scale)
+    if (candidate) {
+      layout = candidate
+      low = scale
+    } else {
+      high = scale
+    }
+  }
+
+  return { layouts: layout ?? {}, world }
 }

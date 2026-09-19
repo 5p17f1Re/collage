@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
-import type { CollageItem, CollageSettings, InteractionMode, ScaleMode, TextCardSize } from '../types'
+import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, ScaleMode, TextCardSize } from '../types'
 import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, EyeIcon, ShuffleIcon } from './icons'
 
 interface SidebarProps {
   items: CollageItem[]
   selectedItem: CollageItem | undefined
   settings: CollageSettings
+  layoutMode: LayoutMode
   onAddFiles: (files: File[]) => void
   onAddText: () => void
   onSelectItem: (itemId: string) => void
@@ -15,6 +16,8 @@ interface SidebarProps {
   onUpdateItem: (itemId: string, updates: Partial<CollageItem>) => void
   onRemoveItem: (itemId: string) => void
   onChangeSettings: (updates: Partial<CollageSettings>) => void
+  onChangePanoramaSettings: (updates: Partial<PanoramaSettings>) => void
+  onLayoutModeChange: (mode: LayoutMode) => void
   onShuffle: () => void
   onShuffleItems: () => void
   onPreview: () => void
@@ -26,20 +29,24 @@ function RangeControl({
   value,
   min,
   max,
+  step = 1,
   suffix = '%',
+  valueLabel,
   onChange,
 }: {
   label: string
   value: number
   min: number
   max: number
+  step?: number
   suffix?: string
+  valueLabel?: string
   onChange: (value: number) => void
 }) {
   return (
     <label className="range-control">
-      <span className="range-control__label"><span>{label}</span><output>{value}{suffix}</output></span>
-      <input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <span className="range-control__label"><span>{label}</span><output>{valueLabel ?? `${value}${suffix}`}</output></span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   )
 }
@@ -77,6 +84,18 @@ function HeroControl({ enabled, onChange }: { enabled: boolean; onChange: (enabl
         <small>Первый материал в центре</small>
       </button>
     </div>
+  )
+}
+
+function LayoutModeControl({ value, onChange }: { value: LayoutMode; onChange: (value: LayoutMode) => void }) {
+  return (
+    <section className="mode-panel" aria-label="Режим раскладки">
+      <div className="section-heading"><span>Режим</span></div>
+      <div className="segmented-control" aria-label="Режим раскладки">
+        <button className={value === 'field' ? 'is-active' : ''} onClick={() => onChange('field')}>Свободное поле</button>
+        <button className={value === 'panorama' ? 'is-active' : ''} onClick={() => onChange('panorama')}>Панорама</button>
+      </div>
+    </section>
   )
 }
 
@@ -135,7 +154,7 @@ function ItemRow({
         </span>
         <span className="item-row__name-group">
           <span className="item-row__name">{item.type === 'text' ? item.text || 'Текстовый блок' : item.name}</span>
-          {isHero && <span className="item-row__hero-label">Главный</span>}
+          {isHero && <span className="item-row__hero-label">Главный кадр</span>}
         </span>
       </button>
       <span className="item-row__actions">
@@ -152,10 +171,16 @@ function ItemInspector({
   item,
   onUpdate,
   onRemove,
+  layoutMode,
+  groupCount,
+  isPanoramaHero,
 }: {
   item: CollageItem | undefined
   onUpdate: (updates: Partial<CollageItem>) => void
   onRemove: () => void
+  layoutMode: LayoutMode
+  groupCount: number
+  isPanoramaHero: boolean
 }) {
   if (!item) return null
 
@@ -181,6 +206,18 @@ function ItemInspector({
       ) : (
         <label className="field-label">Подпись<textarea value={item.caption} onChange={(event) => onUpdate({ caption: event.target.value })} placeholder="Добавьте подпись к изображению" rows={3} /></label>
       )}
+      {layoutMode === 'panorama' && !isPanoramaHero && (
+        <div className="control-group">
+          <span className="control-label">Размер в панораме</span>
+          <div className="segmented-control size-group-control" style={{ gridTemplateColumns: `repeat(${groupCount + 1}, 1fr)` }}>
+            <button className={!item.sizeGroup ? 'is-active' : ''} onClick={() => onUpdate({ sizeGroup: undefined })}>Авто</button>
+            {Array.from({ length: groupCount }, (_, index) => index + 1).map((group) => (
+              <button key={group} className={item.sizeGroup === group ? 'is-active' : ''} onClick={() => onUpdate({ sizeGroup: group })}>{group}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {layoutMode === 'panorama' && isPanoramaHero && <p className="item-inspector__hint">Первый материал — главный кадр: отдельная доминанта вне размерных групп.</p>}
     </section>
   )
 }
@@ -189,6 +226,7 @@ export function Sidebar({
   items,
   selectedItem,
   settings,
+  layoutMode,
   onAddFiles,
   onAddText,
   onSelectItem,
@@ -197,6 +235,8 @@ export function Sidebar({
   onUpdateItem,
   onRemoveItem,
   onChangeSettings,
+  onChangePanoramaSettings,
+  onLayoutModeChange,
   onShuffle,
   onShuffleItems,
   onPreview,
@@ -214,6 +254,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <header className="sidebar__header"><span>COLLAGE LAB</span><span className="sidebar__count">{items.length}</span></header>
+      <LayoutModeControl value={layoutMode} onChange={onLayoutModeChange} />
       <section className="media-panel" aria-label="Порядок композиции">
         <div className="section-heading">
           <span>Порядок</span>
@@ -233,7 +274,7 @@ export function Sidebar({
               isSelected={selectedItem?.id === item.id}
               isFirst={index === 0}
               isLast={index === items.length - 1}
-              isHero={settings.heroEnabled && index === 0 && item.type !== 'text'}
+              isHero={layoutMode === 'panorama' ? index === 0 : settings.heroEnabled && index === 0 && item.type !== 'text'}
               onSelect={() => onSelectItem(item.id)}
               onMove={(direction) => onMoveItem(item.id, direction)}
               onReorder={onReorderItems}
@@ -255,19 +296,32 @@ export function Sidebar({
         onRemove={() => {
           if (selectedItem) onRemoveItem(selectedItem.id)
         }}
+        layoutMode={layoutMode}
+        groupCount={settings.panorama.groupCount}
+        isPanoramaHero={layoutMode === 'panorama' && selectedItem?.id === items[0]?.id}
       />
       {isSettingsOpen && (
         <section id="composition-settings" className="settings-panel" aria-label="Настройки композиции">
           <div className="section-heading"><span>Композиция</span></div>
-          <RangeControl label="Плотность" value={settings.density} min={0} max={150} onChange={(density) => onChangeSettings({ density })} />
-          <RangeControl label="Перекрытие по горизонтали" value={settings.horizontalOverlap} min={-50} max={150} onChange={(horizontalOverlap) => onChangeSettings({ horizontalOverlap })} />
-          <RangeControl label="Перекрытие по вертикали" value={settings.verticalOverlap} min={-50} max={150} onChange={(verticalOverlap) => onChangeSettings({ verticalOverlap })} />
-          <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
-          <InteractionModeControl value={settings.interactionMode} onChange={(interactionMode) => onChangeSettings({ interactionMode })} />
-          <HeroControl enabled={settings.heroEnabled} onChange={(heroEnabled) => onChangeSettings({ heroEnabled })} />
-          {settings.heroEnabled && <RangeControl label="Масштаб главного" value={settings.heroScale} min={40} max={120} onChange={(heroScale) => onChangeSettings({ heroScale })} />}
-          <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
-          <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
+          {layoutMode === 'panorama' ? (
+            <>
+              <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
+              <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={100} valueLabel={`${settings.panorama.groupContrast}%`} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
+              <RangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={`${settings.panorama.spanPercent}% · ${settings.panorama.spanPercent / 50} экр.`} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
+            </>
+          ) : (
+            <>
+              <RangeControl label="Плотность" value={settings.density} min={0} max={150} onChange={(density) => onChangeSettings({ density })} />
+              <RangeControl label="Перекрытие по горизонтали" value={settings.horizontalOverlap} min={-50} max={150} onChange={(horizontalOverlap) => onChangeSettings({ horizontalOverlap })} />
+              <RangeControl label="Перекрытие по вертикали" value={settings.verticalOverlap} min={-50} max={150} onChange={(verticalOverlap) => onChangeSettings({ verticalOverlap })} />
+              <ScaleModeControl value={settings.scaleMode} onChange={(scaleMode) => onChangeSettings({ scaleMode })} />
+              <InteractionModeControl value={settings.interactionMode} onChange={(interactionMode) => onChangeSettings({ interactionMode })} />
+              <HeroControl enabled={settings.heroEnabled} onChange={(heroEnabled) => onChangeSettings({ heroEnabled })} />
+              {settings.heroEnabled && <RangeControl label="Масштаб главного" value={settings.heroScale} min={40} max={120} onChange={(heroScale) => onChangeSettings({ heroScale })} />}
+              <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
+              <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
+            </>
+          )}
           <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
           <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
           <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>

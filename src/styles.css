@@ -9,6 +9,7 @@
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; min-width: 0; min-height: 100%; margin: 0; }
 body { min-height: 100dvh; overflow: hidden; }
+body:has(.app-shell--panorama) { overflow-y: auto; }
 button, input, textarea { font: inherit; }
 button { color: inherit; }
 button:not(:disabled), input:not(:disabled), textarea:not(:disabled) { cursor: pointer; }
@@ -89,7 +90,8 @@ button:disabled { opacity: .32; cursor: not-allowed; }
 
 .media-panel,
 .item-inspector,
-.settings-panel { padding: 18px 17px; border-bottom: 1px solid oklch(0.84 0 0); }
+.settings-panel,
+.mode-panel { padding: 18px 17px; border-bottom: 1px solid oklch(0.84 0 0); }
 
 .section-heading {
   min-height: 18px;
@@ -195,6 +197,7 @@ button:disabled { opacity: .32; cursor: not-allowed; }
 .control-group,
 .range-control,
 .color-control { display: grid; gap: 7px; }
+.item-inspector__hint { margin: 14px 0 0; color: oklch(0.45 0 0); font-size: 10px; line-height: 1.4; }
 .field-label { color: oklch(0.32 0 0); font-size: 10px; }
 .field-label textarea {
   width: 100%;
@@ -289,6 +292,23 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
   isolation: isolate;
   touch-action: pan-y;
   user-select: none;
+}
+.app-shell--panorama { height: max(100dvh, 720px); min-height: 0; overflow: hidden; }
+.app-shell--panorama .sidebar { min-height: 0; overflow-y: auto; }
+.collage-stage--panorama { height: 720px; min-height: 720px; touch-action: pan-y; }
+.collage-stage--panorama .collage-card { transition: filter .18s ease; }
+.collage-stage--panorama .collage-card--text {
+  box-sizing: border-box;
+  min-height: 0;
+  padding: clamp(10px, 1.5vw, 20px);
+  overflow: hidden;
+}
+.collage-stage--panorama .collage-card--text p { font-size: clamp(12px, 1.55vw, 24px); }
+.collage-stage--panorama button.collage-card:focus-visible { --card-scale: 1; outline: 1px solid oklch(0.16 0 0); outline-offset: 3px; }
+@media (hover: hover) {
+  .collage-stage--panorama button.collage-card:hover { --card-scale: 1; z-index: auto !important; }
+  .collage-stage--panorama button.collage-card:hover img,
+  .collage-stage--panorama button.collage-card:hover video { animation: none; }
 }
 .collage-stage--cursor-follow { touch-action: none; cursor: default; }
 .collage-stage--cursor-follow .collage-card--text { min-height: 0; padding: clamp(8px, 1.2vw, 18px); }
@@ -492,45 +512,17 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
 .details-dialog__caption span { font-size: 11px; font-weight: 700; }
 .details-dialog__caption p { max-width: 70ch; margin: 7px 0 0; font-size: 12px; line-height: 1.45; }
 
-.app-shell--preview { display: block; overflow: hidden; }
 .collage-stage--preview { width: 100%; height: 100dvh; min-height: 100dvh; }
+.collage-stage--preview.collage-stage--panorama { height: 720px; min-height: 720px; }
 .collage-stage--preview .collage-stage__hint { display: none; }
-.story-preview {
+.clean-preview {
   position: fixed;
   inset: 0;
   z-index: 180;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  overflow: auto;
   background: oklch(1 0 0);
 }
-.story-preview__interactive { height: 100dvh; min-height: 580px; position: relative; }
-.story-media {
-  min-height: 100dvh;
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 54px clamp(20px, 7vw, 120px);
-  background: oklch(0.99 0 0);
-}
-.story-media__images { width: min(100%, 1200px); display: grid; gap: clamp(18px, 4vw, 64px); }
-.story-media__images img { width: 100%; max-height: 88dvh; display: block; object-fit: contain; }
-.story-media__empty { max-width: 34ch; color: oklch(0.42 0 0); font-size: 13px; line-height: 1.4; text-align: center; }
-.story-media__upload {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  min-height: 34px;
-  padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid oklch(0.17 0 0);
-  color: oklch(0.17 0 0);
-  background: oklch(1 0 0 / .88);
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.story-media__upload:hover { background: oklch(0.94 0 0); }
+.clean-preview--panorama { min-height: 100dvh; display: grid; place-items: center; }
 .preview-exit { position: fixed; top: 13px; right: 14px; z-index: 200; color: oklch(0.16 0 0); background: oklch(1 0 0 / .72); box-shadow: 0 1px 5px oklch(0.13 0 0 / .12); }
 .settings-toggle {
   position: fixed;
@@ -562,10 +554,13 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
   .app-topbar p { display: none; }
   .app-topbar { grid-column: 1; grid-row: 1; }
   .collage-stage { grid-column: 1; grid-row: 1; order: initial; height: auto; min-height: 0; }
+  .app-shell.app-shell--panorama { height: auto; min-height: 720px; grid-template-rows: 720px auto; overflow: auto; }
+  .app-shell--panorama .collage-stage--panorama { grid-column: 1; grid-row: 1; height: 720px; min-height: 720px; }
+  .app-shell--panorama .sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow: visible; }
   .sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow-y: auto; border-right: 0; border-top: 1px solid oklch(0.79 0 0); order: initial; }
   .sidebar__header { min-height: 45px; }
   .collage-stage__hint { right: 11px; bottom: 10px; }
-  .media-panel, .item-inspector, .settings-panel { padding: 16px 14px; }
+  .media-panel, .item-inspector, .settings-panel, .mode-panel { padding: 16px 14px; }
   .sidebar__footer { padding: 12px 14px 16px; }
   .settings-toggle { left: 14px; bottom: calc(54svh + 14px); }
   .item-row { height: 49px; }

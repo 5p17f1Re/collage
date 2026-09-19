@@ -2,6 +2,14 @@ export type CollageItemType = 'image' | 'video' | 'text'
 export type ScaleMode = 'priority' | 'uniform'
 export type TextCardSize = 'small' | 'medium' | 'large'
 export type InteractionMode = 'drag' | 'cursor'
+export type LayoutMode = 'field' | 'panorama'
+
+export interface PanoramaSettings {
+  groupCount: number
+  spanPercent: number
+  /** 0 keeps groups nearly equal; 100 maximises their size difference. */
+  groupContrast: number
+}
 
 export interface CollageItem {
   id: string
@@ -13,6 +21,8 @@ export interface CollageItem {
   textSize?: TextCardSize
   aspectRatio: number
   isObjectUrl?: boolean
+  /** Undefined lets Panorama assign a group automatically. */
+  sizeGroup?: number
 }
 
 export interface CollageSettings {
@@ -28,6 +38,7 @@ export interface CollageSettings {
   heroEnabled: boolean
   heroScale: number
   background: string
+  panorama: PanoramaSettings
 }
 
 export interface ItemLayout {

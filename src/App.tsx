@@ -5,7 +5,7 @@ import { CloseIcon } from './components/icons'
 import { Sidebar } from './components/Sidebar'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { SAMPLE_ITEMS } from './sampleItems'
-import type { CollageItem, CollageSettings } from './types'
+import type { CollageItem, CollageSettings, LayoutMode, PanoramaSettings } from './types'
 
 const INITIAL_SETTINGS: CollageSettings = {
   density: 56,
@@ -20,6 +20,11 @@ const INITIAL_SETTINGS: CollageSettings = {
   heroEnabled: false,
   heroScale: 100,
   background: '#ffffff',
+  panorama: {
+    groupCount: 3,
+    spanPercent: 100,
+    groupContrast: 60,
+  },
 }
 
 const DEFAULT_TEXT = 'Мы представляем\nновую коллекцию\n«Сад»'
@@ -63,27 +68,14 @@ function shuffleItems(items: CollageItem[]) {
   return shuffledItems
 }
 
-function StoryMediaSection({ position, images, onAddFiles }: { position: 'top' | 'bottom'; images: string[]; onAddFiles: (files: File[]) => void }) {
-  const label = position === 'top' ? 'Материалы перед историей' : 'Материалы после истории'
-  return (
-    <section className={`story-media story-media--${position}`} aria-label={label}>
-      {images.length > 0 ? <div className="story-media__images">{images.map((source) => <img key={source} src={source} alt="Материал истории" />)}</div> : <div className="story-media__empty">Сюда можно добавить изображения для вертикального пролога или эпилога.</div>}
-      <label className="story-media__upload">
-        <input className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => { onAddFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = '' }} />
-        Добавить изображения
-      </label>
-    </section>
-  )
-}
-
 export function App() {
   const [items, setItems] = useState<CollageItem[]>(() => SAMPLE_ITEMS.map((item) => ({ ...item })))
   const [settings, setSettings] = useState<CollageSettings>(INITIAL_SETTINGS)
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => window.location.hash === '#panorama' ? 'panorama' : 'field')
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
-  const [storyImages, setStoryImages] = useState({ top: [] as string[], bottom: [] as string[] })
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
@@ -92,6 +84,15 @@ export function App() {
 
   useEffect(() => () => {
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+  }, [])
+
+  useEffect(() => {
+    function syncModeFromHash() {
+      setLayoutMode(window.location.hash === '#panorama' ? 'panorama' : 'field')
+    }
+
+    window.addEventListener('hashchange', syncModeFromHash)
+    return () => window.removeEventListener('hashchange', syncModeFromHash)
   }, [])
 
   useEffect(() => {
@@ -169,24 +170,33 @@ export function App() {
     setSeed((currentSeed) => currentSeed + 1)
   }
 
-  function handleAddStoryFiles(position: 'top' | 'bottom', files: File[]) {
-    const sources = files.filter((file) => file.type.startsWith('image/')).map((file) => {
-      const source = URL.createObjectURL(file)
-      objectUrlsRef.current.add(source)
-      return source
-    })
-    if (sources.length) setStoryImages((current) => ({ ...current, [position]: [...current[position], ...sources] }))
+  function handleLayoutModeChange(mode: LayoutMode) {
+    setLayoutMode(mode)
+    if (mode === 'panorama') {
+      if (window.location.hash !== '#panorama') window.location.hash = 'panorama'
+      return
+    }
+    if (window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  }
+
+  function handlePanoramaSettingsChange(updates: Partial<PanoramaSettings>) {
+    const nextGroupCount = updates.groupCount
+    setSettings((currentSettings) => ({
+      ...currentSettings,
+      panorama: { ...currentSettings.panorama, ...updates },
+    }))
+    if (nextGroupCount !== undefined) {
+      setItems((currentItems) => currentItems.map((item) => item.sizeGroup
+        ? { ...item, sizeGroup: Math.min(item.sizeGroup, nextGroupCount) }
+        : item))
+    }
   }
 
   if (isPreview) {
     return (
       <>
-        <div className="story-preview">
-          <StoryMediaSection position="top" images={storyImages.top} onAddFiles={(files) => handleAddStoryFiles('top', files)} />
-          <section className="story-preview__interactive" aria-label="Интерактивная история">
-            <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
-          </section>
-          <StoryMediaSection position="bottom" images={storyImages.bottom} onAddFiles={(files) => handleAddStoryFiles('bottom', files)} />
+        <div className={`clean-preview ${layoutMode === 'panorama' ? 'clean-preview--panorama' : ''}`}>
+          <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview layoutMode={layoutMode} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
         </div>
         <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>
         {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
@@ -195,11 +205,12 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''}`}>
       <Sidebar
           items={items}
           selectedItem={selectedItem}
           settings={settings}
+          layoutMode={layoutMode}
           onAddFiles={handleAddFiles}
           onAddText={handleAddText}
           onSelectItem={setSelectedItemId}
@@ -214,6 +225,8 @@ export function App() {
           onUpdateItem={handleUpdateItem}
           onRemoveItem={() => selectedItem && handleRemoveItem(selectedItem.id)}
           onChangeSettings={(updates) => setSettings((currentSettings) => ({ ...currentSettings, ...updates }))}
+          onChangePanoramaSettings={handlePanoramaSettingsChange}
+          onLayoutModeChange={handleLayoutModeChange}
           onShuffle={() => setSeed(Math.floor(Math.random() * 1000000000))}
           onShuffleItems={() => {
             setItems((currentItems) => shuffleItems(currentItems))
@@ -228,6 +241,7 @@ export function App() {
         seed={seed}
         isMobile={isMobile}
         isPreview={false}
+        layoutMode={layoutMode}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
         onAspectRatioChange={handleAspectRatioChange}
       />

@@ -2,8 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
-import { generateLayout, getCursorFollowRange, getWorldSize } from '../lib/layout'
-import type { CollageItem, CollageSettings } from '../types'
+import { generateLayout, generatePanoramaLayout, getCursorFollowRange, getWorldSize } from '../lib/layout'
+import type { CollageItem, CollageSettings, LayoutMode } from '../types'
 
 gsap.registerPlugin(Draggable)
 
@@ -13,6 +13,7 @@ interface CollageStageProps {
   seed: number
   isMobile: boolean
   isPreview: boolean
+  layoutMode: LayoutMode
   onOpenGallery: (itemId: string, origin: { x: number; y: number }) => void
   onAspectRatioChange: (itemId: string, aspectRatio: number) => void
 }
@@ -24,7 +25,7 @@ function getItemAspectRatio(item: CollageItem) {
   return 1.42
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, layoutMode, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -33,14 +34,21 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
   const viewport = useMemo(() => stageSize.width > 0 && stageSize.height > 0
     ? stageSize
     : isMobile ? { width: 390, height: 320 } : { width: 1200, height: 800 }, [isMobile, stageSize])
-  const isCursorMode = settings.interactionMode === 'cursor'
-  const heroItemId = settings.heroEnabled && items[0]?.type !== 'text' ? items[0]?.id : undefined
+  const isPanorama = layoutMode === 'panorama'
+  const isCursorMode = !isPanorama && settings.interactionMode === 'cursor'
+  const heroItemId = isPanorama
+    ? items[0]?.id
+    : settings.heroEnabled && items[0]?.type !== 'text' ? items[0]?.id : undefined
   const followRange = getCursorFollowRange(viewport, isMobile)
-  const layouts = useMemo(
-    () => generateLayout(items, settings, seed, isMobile, { viewport }),
-    [items, settings, seed, isMobile, viewport],
+  const panorama = useMemo(
+    () => isPanorama ? generatePanoramaLayout(items, settings, seed, viewport.width) : undefined,
+    [isPanorama, items, settings, seed, viewport.width],
   )
-  const world = getWorldSize(isMobile)
+  const layouts = useMemo(
+    () => panorama?.layouts ?? generateLayout(items, settings, seed, isMobile, { viewport }),
+    [panorama, items, settings, seed, isMobile, viewport],
+  )
+  const world = panorama?.world ?? getWorldSize(isMobile)
 
   useLayoutEffect(() => {
     const stage = stageRef.current
@@ -70,12 +78,20 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
+    const panoramaVerticalRange = Math.max((world.height - stageBounds.height) / 2, 0)
+    const canPanVertically = isPanorama && !isMobile
+    const normalizePanoramaX = (x: number) => {
+      const halfWidth = world.width / 2
+      return ((x + halfWidth) % world.width + world.width) % world.width - halfWidth
+    }
 
     const draggable = Draggable.create(worldNode, {
-      type: isMobile ? 'x' : 'x,y',
+      type: canPanVertically || (!isPanorama && !isMobile) ? 'x,y' : 'x',
       trigger: stage,
-      bounds: isMobile
-        ? { minX: -100000, maxX: 100000 }
+      bounds: isPanorama
+        ? { minX: -100000, maxX: 100000, minY: -panoramaVerticalRange, maxY: panoramaVerticalRange }
+        : isMobile
+          ? { minX: -100000, maxX: 100000 }
         : { minX: -100000, maxX: 100000, minY: -verticalRange, maxY: verticalRange },
       allowEventDefault: true,
       cursor: 'grab',
@@ -83,6 +99,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
       dragClickables: true,
       ignore: '.settings-toggle',
       edgeResistance: 0.78,
+      liveSnap: isPanorama ? { x: normalizePanoramaX } : undefined,
       onPress(this: Draggable) {
         isDraggingRef.current = true
         gsap.killTweensOf(worldNode)
@@ -92,11 +109,6 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
         isDraggingRef.current = false
         followBaseRef.current = { x: this.x, y: this.y }
       },
-      onDrag(this: Draggable) {
-        const draggableState = this as unknown as { x: number }
-        while (draggableState.x > world.width / 2) draggableState.x -= world.width
-        while (draggableState.x < -world.width / 2) draggableState.x += world.width
-      },
     })[0]
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     draggable.update()
@@ -104,7 +116,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
     return () => {
       draggable.kill()
     }
-  }, [isCursorMode, isMobile, isPreview, world.height, world.width])
+  }, [isCursorMode, isMobile, isPanorama, isPreview, world.height, world.width])
 
   useLayoutEffect(() => {
     const stage = stageRef.current
@@ -158,15 +170,16 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
   return (
     <main
       ref={stageRef}
-      className={`collage-stage ${isPreview ? 'collage-stage--preview' : ''} ${isCursorMode ? 'collage-stage--cursor-follow' : ''} ${settings.showGrid ? 'collage-stage--grid' : ''}`}
+      className={`collage-stage ${isPreview ? 'collage-stage--preview' : ''} ${isPanorama ? 'collage-stage--panorama' : ''} ${isCursorMode ? 'collage-stage--cursor-follow' : ''} ${settings.showGrid ? 'collage-stage--grid' : ''}`}
       style={{ backgroundColor: settings.background }}
-      aria-label="Интерактивный коллаж"
+      aria-label={isPanorama ? 'Панорамный интерактивный коллаж' : 'Интерактивный коллаж'}
     >
-      <div className="collage-stage__hint" aria-hidden="true">{isCursorMode ? 'Ведите мышью, чтобы исследовать' : isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
+      <div className="collage-stage__hint" aria-hidden="true">{isCursorMode ? 'Ведите мышью, чтобы исследовать' : isPanorama && !isMobile ? 'Тяните в любую сторону' : isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
       <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
         {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
         {(isCursorMode ? [0] : [-1, 0, 1]).flatMap((copyOffset) => items.map((item) => {
           const layout = layouts[item.id]
+          if (!layout) return null
           const aspectRatio = getItemAspectRatio(item)
           const left = layout.x + copyOffset * world.width
           const isHero = item.id === heroItemId
@@ -178,7 +191,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, onOpe
             zIndex: layout.zIndex,
             transform: `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--card-scale, 1))`,
             aspectRatio: String(aspectRatio),
-            '--hover-scale': String(settings.hoverScale / 100),
+            '--hover-scale': String(isPanorama ? 1 : settings.hoverScale / 100),
           }
 
           const focusCard = (event: MouseEvent<HTMLButtonElement>) => {
