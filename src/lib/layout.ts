@@ -15,6 +15,9 @@ const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
 export const PANORAMA_HEIGHT = 720
 const PANORAMA_VERTICAL_OVERFLOW = 160
 const PANORAMA_GAP = 14
+const PANORAMA_HERO_CLEARANCE = 32
+const PANORAMA_GUIDE_RATIOS = [0.14, 0.36, 0.64, 0.86]
+const PANORAMA_CLUSTER_RATIOS = [0.1, 0.28, 0.42, 0.58, 0.72, 0.9]
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0
@@ -329,37 +332,98 @@ function getPanoramaGroupAssignments(items: CollageItem[], groupCount: number, s
   return assignments
 }
 
-function getPanoramaItemHeight(
-  baseHeight: number,
-  group: number,
-  groupCount: number,
-  groupContrast: number,
-  isHero: boolean,
-) {
+function getPanoramaGroupFactor(group: number, groupCount: number, groupContrast: number) {
   const contrast = clamp(groupContrast, 0, 100) / 100
   const smallestGroupFactor = interpolate(1, 0.4, contrast)
-  const groupFactor = groupCount === 1 ? 1 : interpolate(smallestGroupFactor, 1, group / (groupCount - 1))
-  // The first item is a spatial anchor, not a member of a size group.
-  return baseHeight * (isHero ? 1.65 : groupFactor)
+  return groupCount === 1 ? 1 : interpolate(smallestGroupFactor, 1, group / (groupCount - 1))
 }
 
-function placeInFreeRectangles(
+function getPanoramaHeroHeightFactor(
+  hero: CollageItem,
+  secondary: CollageItem[],
+  assignments: Map<string, number>,
+  groupCount: number,
+  groupContrast: number,
+) {
+  const heroAspect = Math.max(0.1, getItemAspectRatio(hero))
+  const largestSecondaryAreaFactor = secondary.reduce((largest, item) => {
+    const group = assignments.get(item.id) ?? 0
+    const scale = getPanoramaGroupFactor(group, groupCount, groupContrast)
+    return Math.max(largest, scale ** 2 * Math.max(0.1, getItemAspectRatio(item)))
+  }, 0)
+
+  // A hero that is merely taller can still lose to a wide image. Use its
+  // footprint instead: it is at least 2.25× the largest secondary card area,
+  // while retaining a clear 1.65× height ratio for ordinary proportions.
+  return Math.max(1.65, Math.sqrt(largestSecondaryAreaFactor * 2.25 / heroAspect))
+}
+
+function getGuidedTarget(
+  index: number,
+  group: number,
+  world: { width: number; height: number },
+  random: () => number,
+) {
+  const guideIndex = (index * 3 + group * 2) % PANORAMA_GUIDE_RATIOS.length
+  const clusterIndex = (index * 5 + group) % PANORAMA_CLUSTER_RATIOS.length
+  const xJitter = (random() - 0.5) * world.width * 0.035
+  const yJitter = (random() - 0.5) * world.height * 0.025
+
+  return {
+    x: world.width * PANORAMA_CLUSTER_RATIOS[clusterIndex] + xJitter,
+    y: world.height * PANORAMA_GUIDE_RATIOS[guideIndex] + yJitter,
+    guideY: world.height * PANORAMA_GUIDE_RATIOS[guideIndex],
+  }
+}
+
+function getEdgeContacts(rectangle: Rectangle, free: Rectangle) {
+  const epsilon = 0.5
+  return Number(Math.abs(rectangle.x - free.x) < epsilon)
+    + Number(Math.abs(rectangle.y - free.y) < epsilon)
+    + Number(Math.abs(rectangle.x + rectangle.width - (free.x + free.width)) < epsilon)
+    + Number(Math.abs(rectangle.y + rectangle.height - (free.y + free.height)) < epsilon)
+}
+
+function placeAlongGuides(
   freeRectangles: Rectangle[],
   width: number,
   height: number,
   desiredX: number,
   desiredY: number,
+  guideY: number,
+  random: () => number,
 ) {
   let best: { rectangle: Rectangle; score: number } | undefined
 
   freeRectangles.forEach((free) => {
     if (width > free.width || height > free.height) return
-    const x = clamp(desiredX - width / 2, free.x, free.x + free.width - width)
-    const y = clamp(desiredY - height / 2, free.y, free.y + free.height - height)
-    const centreDistance = Math.hypot(x + width / 2 - desiredX, y + height / 2 - desiredY)
-    const leftoverArea = free.width * free.height - width * height
-    const score = centreDistance + leftoverArea / 100000
-    if (!best || score < best.score) best = { rectangle: { x, y, width, height }, score }
+    const candidateXs = [
+      clamp(desiredX - width / 2, free.x, free.x + free.width - width),
+      free.x,
+      free.x + free.width - width,
+    ]
+    const candidateYs = [
+      clamp(desiredY - height / 2, free.y, free.y + free.height - height),
+      free.y,
+      free.y + free.height - height,
+    ]
+    const seen = new Set<string>()
+
+    candidateXs.forEach((x) => candidateYs.forEach((y) => {
+      const key = `${Math.round(x * 10)}:${Math.round(y * 10)}`
+      if (seen.has(key)) return
+      seen.add(key)
+
+      const rectangle = { x, y, width, height }
+      const guideDistance = Math.abs(y + height / 2 - guideY)
+      const clusterDistance = Math.abs(x + width / 2 - desiredX)
+      const leftoverArea = free.width * free.height - width * height
+      const edgeContacts = getEdgeContacts(rectangle, free)
+      // Favour short local stacks and common guide lines. The tiny seeded term
+      // breaks ties without turning the macro layout back into a scatter.
+      const score = guideDistance * 0.72 + clusterDistance * 0.18 + leftoverArea / 100000 - edgeContacts * 78 + random() * 2
+      if (!best || score < best.score) best = { rectangle, score }
+    }))
   })
 
   return best?.rectangle
@@ -377,22 +441,23 @@ function tryPackPanorama(
 
   const hero = items[0]
   const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
+  const secondaryItems = items.slice(1)
   const baseHeight = clamp(Math.min(world.height * 0.28, world.width * 0.125), 72, 220) * scale
-  const heroHeight = getPanoramaItemHeight(baseHeight, groupCount - 1, groupCount, groupContrast, true)
+  const heroHeight = baseHeight * getPanoramaHeroHeightFactor(hero, secondaryItems, assignments, groupCount, groupContrast)
   const heroWidth = heroHeight * Math.max(0.1, getItemAspectRatio(hero))
   const heroOuter: Rectangle = {
-    x: (world.width - heroWidth - PANORAMA_GAP) / 2,
-    y: (world.height - heroHeight - PANORAMA_GAP) / 2,
-    width: heroWidth + PANORAMA_GAP,
-    height: heroHeight + PANORAMA_GAP,
+    x: (world.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
+    y: (world.height - heroHeight) / 2 - PANORAMA_HERO_CLEARANCE,
+    width: heroWidth + PANORAMA_HERO_CLEARANCE * 2,
+    height: heroHeight + PANORAMA_HERO_CLEARANCE * 2,
   }
 
   if (heroOuter.x < 0 || heroOuter.y < 0 || heroOuter.x + heroOuter.width > world.width || heroOuter.y + heroOuter.height > world.height) return undefined
 
   const layouts: Record<string, ItemLayout> = {
     [hero.id]: {
-      x: heroOuter.x + PANORAMA_GAP / 2 + heroWidth / 2,
-      y: heroOuter.y + PANORAMA_GAP / 2 + heroHeight / 2,
+      x: heroOuter.x + PANORAMA_HERO_CLEARANCE + heroWidth / 2,
+      y: heroOuter.y + PANORAMA_HERO_CLEARANCE + heroHeight / 2,
       width: heroWidth,
       height: heroHeight,
       rotation: 0,
@@ -401,21 +466,24 @@ function tryPackPanorama(
   }
   let freeRectangles = subtractUsedRectangle([{ x: 0, y: 0, width: world.width, height: world.height }], heroOuter)
   const random = createSeededRandom(seed + 103)
-  const secondary = items.slice(1)
+  const secondary = secondaryItems
     .map((item) => ({ item, group: assignments.get(item.id) ?? 0, noise: random() }))
     .sort((first, second) => second.group - first.group || first.noise - second.noise)
 
   for (const [index, entry] of secondary.entries()) {
-    const height = getPanoramaItemHeight(baseHeight, entry.group, groupCount, groupContrast, false)
+    const height = baseHeight * getPanoramaGroupFactor(entry.group, groupCount, groupContrast)
     const width = height * Math.max(0.1, getItemAspectRatio(entry.item))
     const outerWidth = width + PANORAMA_GAP
     const outerHeight = height + PANORAMA_GAP
-    const placed = placeInFreeRectangles(
+    const target = getGuidedTarget(index, entry.group, world, random)
+    const placed = placeAlongGuides(
       freeRectangles,
       outerWidth,
       outerHeight,
-      random() * world.width,
-      random() * world.height,
+      target.x,
+      target.y,
+      target.guideY,
+      random,
     )
     if (!placed) return undefined
 

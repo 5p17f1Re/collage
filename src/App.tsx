@@ -59,13 +59,18 @@ function reorderItems(items: CollageItem[], sourceId: string, targetId: string) 
   return reorderedItems
 }
 
-function shuffleItems(items: CollageItem[]) {
-  const shuffledItems = [...items]
+function shuffleItems(items: CollageItem[], preserveFirst = false) {
+  if (items.length < 2) return items
+
+  // In Panorama the first item is the selected anchor. The free-field flow
+  // keeps its existing behaviour and may still reshuffle every item.
+  const hero = preserveFirst ? items[0] : undefined
+  const shuffledItems = preserveFirst ? items.slice(1) : [...items]
   for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
     const targetIndex = Math.floor(Math.random() * (index + 1))
     ;[shuffledItems[index], shuffledItems[targetIndex]] = [shuffledItems[targetIndex], shuffledItems[index]]
   }
-  return shuffledItems
+  return hero ? [hero, ...shuffledItems] : shuffledItems
 }
 
 export function App() {
@@ -223,13 +228,13 @@ export function App() {
             setSeed((currentSeed) => currentSeed + 1)
           }}
           onUpdateItem={handleUpdateItem}
-          onRemoveItem={() => selectedItem && handleRemoveItem(selectedItem.id)}
+          onRemoveItem={handleRemoveItem}
           onChangeSettings={(updates) => setSettings((currentSettings) => ({ ...currentSettings, ...updates }))}
           onChangePanoramaSettings={handlePanoramaSettingsChange}
           onLayoutModeChange={handleLayoutModeChange}
           onShuffle={() => setSeed(Math.floor(Math.random() * 1000000000))}
           onShuffleItems={() => {
-            setItems((currentItems) => shuffleItems(currentItems))
+            setItems((currentItems) => shuffleItems(currentItems, layoutMode === 'panorama'))
             setSeed((currentSeed) => currentSeed + 1)
           }}
           onPreview={() => setIsPreview(true)}

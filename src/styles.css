@@ -303,7 +303,9 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
   padding: clamp(10px, 1.5vw, 20px);
   overflow: hidden;
 }
-.collage-stage--panorama .collage-card--text p { font-size: clamp(12px, 1.55vw, 24px); }
+.collage-stage--panorama .collage-card--text p,
+.collage-stage--panorama .collage-card--text.collage-card--small p,
+.collage-stage--panorama .collage-card--text.collage-card--large p { font-size: clamp(11px, 1.55vw, 24px); }
 .collage-stage--panorama button.collage-card:focus-visible { --card-scale: 1; outline: 1px solid oklch(0.16 0 0); outline-offset: 3px; }
 @media (hover: hover) {
   .collage-stage--panorama button.collage-card:hover { --card-scale: 1; z-index: auto !important; }
