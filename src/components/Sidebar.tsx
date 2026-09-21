@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
-import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, ScaleMode, TextCardSize } from '../types'
+import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, PreviewImages, PreviewImageSlot, ScaleMode, TextCardSize } from '../types'
 import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, EyeIcon, ShuffleIcon } from './icons'
 
 interface SidebarProps {
@@ -18,8 +18,10 @@ interface SidebarProps {
   onChangeSettings: (updates: Partial<CollageSettings>) => void
   onChangePanoramaSettings: (updates: Partial<PanoramaSettings>) => void
   onLayoutModeChange: (mode: LayoutMode) => void
-  onShuffle: () => void
   onShuffleItems: () => void
+  previewImages: PreviewImages
+  onPreviewImageChange: (slot: PreviewImageSlot, file: File) => void
+  onPreviewImageClear: (slot: PreviewImageSlot) => void
   onPreview: () => void
   isSettingsOpen: boolean
 }
@@ -94,6 +96,56 @@ function LayoutModeControl({ value, onChange }: { value: LayoutMode; onChange: (
       <div className="segmented-control" aria-label="Режим раскладки">
         <button className={value === 'field' ? 'is-active' : ''} onClick={() => onChange('field')}>Свободное поле</button>
         <button className={value === 'panorama' ? 'is-active' : ''} onClick={() => onChange('panorama')}>Панорама</button>
+      </div>
+    </section>
+  )
+}
+
+function PreviewImagesControl({
+  images,
+  onChange,
+  onClear,
+}: {
+  images: PreviewImages
+  onChange: (slot: PreviewImageSlot, file: File) => void
+  onClear: (slot: PreviewImageSlot) => void
+}) {
+  const slots: Array<{ slot: PreviewImageSlot; label: string }> = [
+    { slot: 'top', label: 'Верхняя картинка' },
+    { slot: 'bottom', label: 'Нижняя картинка' },
+  ]
+
+  return (
+    <section className="preview-images" aria-label="Окружение чистого просмотра">
+      <div className="section-heading"><span>Окружение превью</span></div>
+      <p className="preview-images__description">Эти изображения появятся над и под панорамой только в «Чистом просмотре».</p>
+      <div className="preview-images__controls">
+        {slots.map(({ slot, label }) => {
+          const image = images[slot]
+          const inputId = `preview-image-${slot}`
+
+          return (
+            <div key={slot} className="preview-images__control">
+              <label htmlFor={inputId}>{label}</label>
+              <input
+                id={inputId}
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) onChange(slot, file)
+                  event.target.value = ''
+                }}
+              />
+              {image && (
+                <span className="preview-images__selection">
+                  <span title={image.name}>{image.name}</span>
+                  <button type="button" onClick={() => onClear(slot)} aria-label={`Убрать ${label.toLowerCase()}`}>Убрать</button>
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
     </section>
   )
@@ -237,8 +289,10 @@ export function Sidebar({
   onChangeSettings,
   onChangePanoramaSettings,
   onLayoutModeChange,
-  onShuffle,
   onShuffleItems,
+  previewImages,
+  onPreviewImageChange,
+  onPreviewImageClear,
   onPreview,
   isSettingsOpen,
 }: SidebarProps) {
@@ -255,6 +309,7 @@ export function Sidebar({
     <aside className="sidebar">
       <header className="sidebar__header"><span>COLLAGE LAB</span><span className="sidebar__count">{items.length}</span></header>
       <LayoutModeControl value={layoutMode} onChange={onLayoutModeChange} />
+      {layoutMode === 'panorama' && <PreviewImagesControl images={previewImages} onChange={onPreviewImageChange} onClear={onPreviewImageClear} />}
       <section className="media-panel" aria-label="Порядок композиции">
         <div className="section-heading">
           <span>Порядок</span>
@@ -328,7 +383,6 @@ export function Sidebar({
         </section>
       )}
       <footer className="sidebar__footer">
-        <button className="button button--quiet" onClick={onShuffle}><ShuffleIcon />Перемешать</button>
         <button className="button button--dark" onClick={onPreview}><EyeIcon />Чистый просмотр</button>
       </footer>
     </aside>

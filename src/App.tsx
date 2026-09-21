@@ -5,7 +5,7 @@ import { CloseIcon } from './components/icons'
 import { Sidebar } from './components/Sidebar'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { SAMPLE_ITEMS } from './sampleItems'
-import type { CollageItem, CollageSettings, LayoutMode, PanoramaSettings } from './types'
+import type { CollageItem, CollageSettings, LayoutMode, PanoramaSettings, PreviewImageSlot } from './types'
 
 const INITIAL_SETTINGS: CollageSettings = {
   density: 56,
@@ -25,6 +25,7 @@ const INITIAL_SETTINGS: CollageSettings = {
     spanPercent: 100,
     groupContrast: 60,
   },
+  previewImages: {},
 }
 
 const DEFAULT_TEXT = 'Мы представляем\nновую коллекцию\n«Сад»'
@@ -197,11 +198,48 @@ export function App() {
     }
   }
 
+  function handlePreviewImageChange(slot: PreviewImageSlot, file: File) {
+    const previousSource = settings.previewImages[slot]?.source
+    if (previousSource) {
+      URL.revokeObjectURL(previousSource)
+      objectUrlsRef.current.delete(previousSource)
+    }
+
+    const source = URL.createObjectURL(file)
+    objectUrlsRef.current.add(source)
+    setSettings((currentSettings) => ({
+      ...currentSettings,
+      previewImages: {
+        ...currentSettings.previewImages,
+        [slot]: { source, name: file.name },
+      },
+    }))
+  }
+
+  function handlePreviewImageClear(slot: PreviewImageSlot) {
+    const previousSource = settings.previewImages[slot]?.source
+    if (previousSource) {
+      URL.revokeObjectURL(previousSource)
+      objectUrlsRef.current.delete(previousSource)
+    }
+
+    setSettings((currentSettings) => {
+      const { [slot]: _removedImage, ...previewImages } = currentSettings.previewImages
+      return { ...currentSettings, previewImages }
+    })
+  }
+
   if (isPreview) {
     return (
       <>
         <div className={`clean-preview ${layoutMode === 'panorama' ? 'clean-preview--panorama' : ''}`}>
+          {layoutMode === 'panorama' && settings.previewImages.top && (
+            <img className="clean-preview__surround clean-preview__surround--top" src={settings.previewImages.top.source} alt={settings.previewImages.top.name} draggable={false} />
+          )}
           <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview layoutMode={layoutMode} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
+          {layoutMode === 'panorama' && settings.previewImages.bottom && (
+            <img className="clean-preview__surround clean-preview__surround--bottom" src={settings.previewImages.bottom.source} alt={settings.previewImages.bottom.name} draggable={false} />
+          )}
         </div>
         <button className="preview-exit" onClick={() => setIsPreview(false)} aria-label="Вернуться к лаборатории"><CloseIcon /></button>
         {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
@@ -232,11 +270,13 @@ export function App() {
           onChangeSettings={(updates) => setSettings((currentSettings) => ({ ...currentSettings, ...updates }))}
           onChangePanoramaSettings={handlePanoramaSettingsChange}
           onLayoutModeChange={handleLayoutModeChange}
-          onShuffle={() => setSeed(Math.floor(Math.random() * 1000000000))}
           onShuffleItems={() => {
             setItems((currentItems) => shuffleItems(currentItems, layoutMode === 'panorama'))
             setSeed((currentSeed) => currentSeed + 1)
           }}
+          previewImages={settings.previewImages}
+          onPreviewImageChange={handlePreviewImageChange}
+          onPreviewImageClear={handlePreviewImageClear}
           onPreview={() => setIsPreview(true)}
           isSettingsOpen={true}
       />

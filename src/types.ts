@@ -3,6 +3,14 @@ export type ScaleMode = 'priority' | 'uniform'
 export type TextCardSize = 'small' | 'medium' | 'large'
 export type InteractionMode = 'drag' | 'cursor'
 export type LayoutMode = 'field' | 'panorama'
+export type PreviewImageSlot = 'top' | 'bottom'
+
+export interface PreviewImage {
+  source: string
+  name: string
+}
+
+export type PreviewImages = Partial<Record<PreviewImageSlot, PreviewImage>>
 
 export interface PanoramaSettings {
   groupCount: number
@@ -39,6 +47,7 @@ export interface CollageSettings {
   heroScale: number
   background: string
   panorama: PanoramaSettings
+  previewImages: PreviewImages
 }
 
 export interface ItemLayout {

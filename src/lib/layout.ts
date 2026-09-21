@@ -361,18 +361,29 @@ function getPanoramaHeroHeightFactor(
 function getGuidedTarget(
   index: number,
   group: number,
-  world: { width: number; height: number },
+  contentBounds: Rectangle,
   random: () => number,
 ) {
   const guideIndex = (index * 3 + group * 2) % PANORAMA_GUIDE_RATIOS.length
   const clusterIndex = (index * 5 + group) % PANORAMA_CLUSTER_RATIOS.length
-  const xJitter = (random() - 0.5) * world.width * 0.035
-  const yJitter = (random() - 0.5) * world.height * 0.025
+  const xJitter = (random() - 0.5) * contentBounds.width * 0.035
+  const yJitter = (random() - 0.5) * contentBounds.height * 0.025
 
   return {
-    x: world.width * PANORAMA_CLUSTER_RATIOS[clusterIndex] + xJitter,
-    y: world.height * PANORAMA_GUIDE_RATIOS[guideIndex] + yJitter,
-    guideY: world.height * PANORAMA_GUIDE_RATIOS[guideIndex],
+    x: contentBounds.x + contentBounds.width * PANORAMA_CLUSTER_RATIOS[clusterIndex] + xJitter,
+    y: contentBounds.y + contentBounds.height * PANORAMA_GUIDE_RATIOS[guideIndex] + yJitter,
+    guideY: contentBounds.y + contentBounds.height * PANORAMA_GUIDE_RATIOS[guideIndex],
+  }
+}
+
+function getPanoramaContentBounds(world: { width: number; height: number }): Rectangle {
+  const contentHeight = Math.min(PANORAMA_HEIGHT, world.height)
+
+  return {
+    x: 0,
+    y: (world.height - contentHeight) / 2,
+    width: world.width,
+    height: contentHeight,
   }
 }
 
@@ -440,19 +451,25 @@ function tryPackPanorama(
   if (!items.length) return {} as Record<string, ItemLayout>
 
   const hero = items[0]
+  const contentBounds = getPanoramaContentBounds(world)
   const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
   const secondaryItems = items.slice(1)
-  const baseHeight = clamp(Math.min(world.height * 0.28, world.width * 0.125), 72, 220) * scale
+  const baseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220) * scale
   const heroHeight = baseHeight * getPanoramaHeroHeightFactor(hero, secondaryItems, assignments, groupCount, groupContrast)
   const heroWidth = heroHeight * Math.max(0.1, getItemAspectRatio(hero))
   const heroOuter: Rectangle = {
-    x: (world.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
-    y: (world.height - heroHeight) / 2 - PANORAMA_HERO_CLEARANCE,
+    x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
+    y: contentBounds.y + (contentBounds.height - heroHeight) / 2 - PANORAMA_HERO_CLEARANCE,
     width: heroWidth + PANORAMA_HERO_CLEARANCE * 2,
     height: heroHeight + PANORAMA_HERO_CLEARANCE * 2,
   }
 
-  if (heroOuter.x < 0 || heroOuter.y < 0 || heroOuter.x + heroOuter.width > world.width || heroOuter.y + heroOuter.height > world.height) return undefined
+  if (
+    heroOuter.x < contentBounds.x
+    || heroOuter.y < contentBounds.y
+    || heroOuter.x + heroOuter.width > contentBounds.x + contentBounds.width
+    || heroOuter.y + heroOuter.height > contentBounds.y + contentBounds.height
+  ) return undefined
 
   const layouts: Record<string, ItemLayout> = {
     [hero.id]: {
@@ -464,7 +481,7 @@ function tryPackPanorama(
       zIndex: items.length + 100,
     },
   }
-  let freeRectangles = subtractUsedRectangle([{ x: 0, y: 0, width: world.width, height: world.height }], heroOuter)
+  let freeRectangles = subtractUsedRectangle([contentBounds], heroOuter)
   const random = createSeededRandom(seed + 103)
   const secondary = secondaryItems
     .map((item) => ({ item, group: assignments.get(item.id) ?? 0, noise: random() }))
@@ -475,7 +492,7 @@ function tryPackPanorama(
     const width = height * Math.max(0.1, getItemAspectRatio(entry.item))
     const outerWidth = width + PANORAMA_GAP
     const outerHeight = height + PANORAMA_GAP
-    const target = getGuidedTarget(index, entry.group, world, random)
+    const target = getGuidedTarget(index, entry.group, contentBounds, random)
     const placed = placeAlongGuides(
       freeRectangles,
       outerWidth,
