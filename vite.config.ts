@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { sites } from '@openai/sites-vite-plugin'
+import { env } from 'node:process'
 import { mkdir, readdir, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
@@ -39,5 +40,6 @@ function staticWorker() {
 }
 
 export default defineConfig({
+  base: env.VITE_BASE_PATH || '/',
   plugins: [react(), sites(), staticWorker()],
 })
