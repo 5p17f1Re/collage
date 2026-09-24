@@ -8,10 +8,11 @@ interface VisibilityVideoProps {
   controls?: boolean
   preload?: 'none' | 'metadata' | 'auto'
   onLoadedMetadata?: ReactEventHandler<HTMLVideoElement>
+  onLoadedData?: ReactEventHandler<HTMLVideoElement>
 }
 
 /** Play muted, looping video only while it is visible in the current viewport. */
-export function VisibilityVideo({ src, poster, label, controls = false, preload = 'none', onLoadedMetadata }: VisibilityVideoProps) {
+export function VisibilityVideo({ src, poster, label, controls = false, preload = 'none', onLoadedMetadata, onLoadedData }: VisibilityVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function VisibilityVideo({ src, poster, label, controls = false, preload 
       preload={preload}
       controls={controls}
       onLoadedMetadata={onLoadedMetadata}
+      onLoadedData={onLoadedData}
     />
   )
 }

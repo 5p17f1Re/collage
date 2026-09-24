@@ -16,10 +16,11 @@ interface CollageStageProps {
   seed: number
   isMobile: boolean
   isPreview: boolean
+  isGalleryOpen: boolean
   layoutMode: LayoutMode
   panoramaReferenceWidth: number
   onPanoramaReferenceWidthChange: (width: number) => void
-  onOpenGallery: (itemId: string, origin: { x: number; y: number }) => void
+  onOpenGallery: (itemId: string, origin: HTMLButtonElement) => void
   onAspectRatioChange: (itemId: string, aspectRatio: number) => void
 }
 
@@ -27,10 +28,14 @@ function getItemAspectRatio(item: CollageItem) {
   return item.aspectRatio
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, isGalleryOpen, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
+  const isGalleryOpenRef = useRef(isGalleryOpen)
+  const coastTweenRef = useRef<gsap.core.Tween | undefined>(undefined)
+  const draggableRef = useRef<Draggable | undefined>(undefined)
+  isGalleryOpenRef.current = isGalleryOpen
   const followBaseRef = useRef({ x: 0, y: 0 })
   const inertiaLevelRef = useRef(settings.panorama.inertia)
   inertiaLevelRef.current = settings.panorama.inertia
@@ -153,6 +158,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
       onPressInit(this: Draggable) {
         coastTween?.kill()
         coastTween = undefined
+        coastTweenRef.current = undefined
         gsap.killTweensOf(worldNode)
         this.update()
         previousWrappedX = this.x
@@ -217,19 +223,45 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
             draggable.update()
             followBaseRef.current = { x: draggable.x, y: draggable.y }
             coastTween = undefined
+            coastTweenRef.current = undefined
           },
         })
+        coastTweenRef.current = coastTween
       },
     })[0]
+    draggableRef.current = draggable
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     draggable.update()
+    if (isGalleryOpenRef.current) draggable.disable()
 
     return () => {
       coastTween?.kill()
+      if (coastTweenRef.current === coastTween) coastTweenRef.current = undefined
       motionPreference.removeEventListener('change', syncMotionPreference)
       draggable.kill()
+      if (draggableRef.current === draggable) draggableRef.current = undefined
     }
   }, [isCursorMode, isMobile, isPanorama, isPreview, world.height, world.width])
+
+  useLayoutEffect(() => {
+    const worldNode = worldRef.current
+    if (!worldNode) return
+
+    if (isGalleryOpen) {
+      coastTweenRef.current?.kill()
+      coastTweenRef.current = undefined
+      gsap.killTweensOf(worldNode)
+      draggableRef.current?.disable()
+      return
+    }
+
+    draggableRef.current?.enable()
+    draggableRef.current?.update()
+    followBaseRef.current = {
+      x: Number(gsap.getProperty(worldNode, 'x')) || 0,
+      y: Number(gsap.getProperty(worldNode, 'y')) || 0,
+    }
+  }, [isGalleryOpen])
 
   useLayoutEffect(() => {
     const stage = stageRef.current
@@ -245,7 +277,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
     }
 
     function handleMouseMove(event: globalThis.MouseEvent) {
-      if (isDraggingRef.current) return
+      if (isDraggingRef.current || isGalleryOpenRef.current) return
       const bounds = stageElement.getBoundingClientRect()
       const horizontalPosition = (event.clientX - bounds.left) / bounds.width * 2 - 1
       const verticalPosition = (event.clientY - bounds.top) / bounds.height * 2 - 1
@@ -259,7 +291,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
     }
 
     function handleMouseLeave() {
-      if (isDraggingRef.current) return
+      if (isDraggingRef.current || isGalleryOpenRef.current) return
       gsap.to(worldNode, {
         x: followBaseRef.current.x,
         y: followBaseRef.current.y,
@@ -308,8 +340,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
           }
 
           const focusCard = (event: MouseEvent<HTMLButtonElement>) => {
-            const bounds = event.currentTarget.getBoundingClientRect()
-            onOpenGallery(item.id, { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 })
+            onOpenGallery(item.id, event.currentTarget)
           }
 
           if (item.type === 'text') {
@@ -333,6 +364,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
               onClick={focusCard}
               aria-label={`Открыть галерею: ${item.name}`}
               data-hero={isHero || undefined}
+              data-gallery-id={item.id}
             >
               {item.type === 'image' && item.source && <ImageWithPlaceholder src={item.source} placeholder={item.placeholder} alt={item.name} onLoad={(event) => {
                 const image = event.currentTarget
