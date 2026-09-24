@@ -15,6 +15,8 @@ export type PreviewImages = Partial<Record<PreviewImageSlot, PreviewImage>>
 export interface PanoramaSettings {
   groupCount: number
   spanPercent: number
+  /** Visible edge-to-edge distance between cards in Panorama. */
+  cardGap: number
   /** 0 keeps groups equal; values above 100 make the smallest groups smaller. */
   groupContrast: number
   /** Main Panorama card scale, independent from secondary size groups. */

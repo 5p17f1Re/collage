@@ -24,8 +24,9 @@ const INITIAL_SETTINGS: CollageSettings = {
   panorama: {
     groupCount: 3,
     spanPercent: 100,
+    cardGap: 4,
     groupContrast: 60,
-    heroScale: 100,
+    heroScale: 150,
   },
   previewImages: {},
 }

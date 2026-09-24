@@ -232,6 +232,7 @@ input[type="range"] {
 .range-control__tick { position: absolute; top: 4px; width: 1px; height: 5px; transform: translateX(-50%); background: oklch(0.48 0 0); }
 .range-control__tick--emphasized { top: 1px; width: 2px; height: 10px; background: oklch(0.17 0 0); }
 .range-control__tick-label { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); color: oklch(0.17 0 0); font-size: 8px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.range-control__tick-label--regular { color: oklch(0.42 0 0); font-weight: 400; }
 input[type="range"]::-webkit-slider-runnable-track { height: 1px; background: oklch(0.57 0 0); }
 input[type="range"]::-moz-range-track { height: 1px; background: oklch(0.57 0 0); }
 input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -5.5px; appearance: none; border: 1px solid oklch(0.15 0 0); border-radius: 999px; background: oklch(1 0 0); }
@@ -384,23 +385,6 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
 .collage-card .image-loading { position: absolute; inset: 0; width: 100%; height: 100%; }
 .collage-card__placeholder { position: absolute; inset: -8px; z-index: 0; width: calc(100% + 16px); height: calc(100% + 16px); display: block; object-fit: cover; filter: blur(12px); transform: scale(1.05); pointer-events: none; }
 .collage-card video { position: relative; z-index: 1; width: 100%; height: 100%; display: block; object-fit: contain; background: transparent; pointer-events: none; }
-.collage-card--video::before {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 2;
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-  border: 1px solid oklch(1 0 0 / .75);
-  border-radius: 999px;
-  color: oklch(1 0 0);
-  background: oklch(0.13 0 0 / .3);
-  content: '▶';
-  font-size: 10px;
-  transform: translate(-50%, -50%);
-}
 .collage-card--text {
   box-sizing: border-box;
   min-height: 0;

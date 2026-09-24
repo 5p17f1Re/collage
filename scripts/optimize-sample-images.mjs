@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -9,11 +9,19 @@ const outputDirectory = path.join(projectRoot, 'public/optimized/sample-set')
 const maxDimension = 1600
 const webpOptions = { quality: 88, effort: 5, smartSubsample: true }
 
-const filenames = (await readdir(sourceDirectory))
+const sourceFilenames = await readdir(sourceDirectory)
+const filenames = sourceFilenames
   .filter((filename) => /\.(?:jpe?g|png|webp|avif)$/i.test(filename))
+  .sort((left, right) => left.localeCompare(right))
+const videoFilenames = sourceFilenames
+  .filter((filename) => /\.(?:mp4|webm|mov|m4v)$/i.test(filename))
   .sort((left, right) => left.localeCompare(right))
 
 await mkdir(outputDirectory, { recursive: true })
+
+for (const filename of videoFilenames) {
+  await copyFile(path.join(sourceDirectory, filename), path.join(outputDirectory, filename))
+}
 
 let sourceBytes = 0
 let optimizedBytes = 0
@@ -48,3 +56,4 @@ for (const filename of filenames) {
 
 const formatMegabytes = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`
 console.log(`Optimized ${filenames.length} starter images: ${formatMegabytes(sourceBytes)} → ${formatMegabytes(optimizedBytes)} (WebP, max ${maxDimension}px).`)
+if (videoFilenames.length) console.log(`Copied ${videoFilenames.length} starter video${videoFilenames.length === 1 ? '' : 's'} without re-encoding.`)

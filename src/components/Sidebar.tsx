@@ -37,6 +37,7 @@ function RangeControl({
   valueLabel,
   hint,
   emphasizedTick,
+  showTickLabels = false,
   onChange,
 }: {
   label: string
@@ -48,6 +49,7 @@ function RangeControl({
   valueLabel?: string
   hint?: string
   emphasizedTick?: number
+  showTickLabels?: boolean
   onChange: (value: number) => void
 }) {
   const rangeSteps = Math.floor((max - min) / step) + 1
@@ -69,7 +71,9 @@ function RangeControl({
             const isEmphasized = emphasizedPosition !== undefined && Math.abs(position - emphasizedPosition) < 0.5
             return (
               <span key={position} className={`range-control__tick${isEmphasized ? ' range-control__tick--emphasized' : ''}`} style={{ left: `${position}%` }}>
-                {isEmphasized && <span className="range-control__tick-label">{emphasizedTick}{suffix}</span>}
+                {(isEmphasized || showTickLabels) && <span className={`range-control__tick-label${showTickLabels && !isEmphasized ? ' range-control__tick-label--regular' : ''}`}>
+                  {showTickLabels ? Math.round(min + (position / 100) * (max - min)) : emphasizedTick}{suffix}
+                </span>}
               </span>
             )
           })}
@@ -398,6 +402,7 @@ export function Sidebar({
           {layoutMode === 'panorama' ? (
             <>
               <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
+              <RangeControl label="Промежуток между фото" value={settings.panorama.cardGap} min={4} max={16} step={4} suffix="" valueLabel={`${settings.panorama.cardGap} px`} showTickLabels onChange={(cardGap) => onChangePanoramaSettings({ cardGap })} />
               <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={150} valueLabel={`${settings.panorama.groupContrast}%`} hint="После 100% маленькие карточки уменьшаются дальше; крупные не растут." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
               {items[0]?.type !== 'text' && <RangeControl label="Размер главной картинки" value={settings.panorama.heroScale} min={50} max={150} valueLabel={`${settings.panorama.heroScale}%`} onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
               <RangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={`${settings.panorama.spanPercent}% · ${settings.panorama.spanPercent / 50} экр.`} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />

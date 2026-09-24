@@ -55,6 +55,17 @@ const SAMPLE_IMAGE_ITEMS: CollageItem[] = SAMPLE_ASSET_ORDER.map((filename) => {
   }
 })
 
+const SAMPLE_VIDEO_ITEM: CollageItem = {
+  id: 'sample-video',
+  name: 'video.mp4',
+  type: 'video',
+  source: `${OPTIMIZED_SAMPLE_BASE_URL}video.mp4`,
+  poster: `${OPTIMIZED_SAMPLE_BASE_URL}video-poster.webp`,
+  placeholder: `${OPTIMIZED_SAMPLE_BASE_URL}video-poster-placeholder.webp`,
+  caption: '',
+  aspectRatio: 792 / 530,
+}
+
 const SAMPLE_TEXT_ITEMS: CollageItem[] = [
   {
     id: 'sample-text-wremena',
@@ -76,4 +87,4 @@ const SAMPLE_TEXT_ITEMS: CollageItem[] = [
   },
 ]
 
-export const SAMPLE_ITEMS: CollageItem[] = [...SAMPLE_IMAGE_ITEMS, ...SAMPLE_TEXT_ITEMS]
+export const SAMPLE_ITEMS: CollageItem[] = [SAMPLE_IMAGE_ITEMS[0], SAMPLE_VIDEO_ITEM, ...SAMPLE_IMAGE_ITEMS.slice(1), ...SAMPLE_TEXT_ITEMS]

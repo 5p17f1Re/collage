@@ -16,8 +16,9 @@ const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
 export const PANORAMA_HEIGHT = 720
 export const PANORAMA_VERTICAL_DRAG_RANGE = 80
 const PANORAMA_STAGE_HEIGHT = PANORAMA_HEIGHT + PANORAMA_VERTICAL_DRAG_RANGE * 2
-const PANORAMA_GAP = 8
-const PANORAMA_HERO_CLEARANCE = 24
+const PANORAMA_GAP_MIN = 4
+const PANORAMA_GAP_MAX = 16
+const PANORAMA_GAP_STEP = 4
 const PANORAMA_REFERENCE_CONTRAST = 60
 const PANORAMA_REFERENCE_HERO_SCALE = 100
 const PANORAMA_GUIDE_RATIOS = [0.14, 0.36, 0.64, 0.86]
@@ -41,6 +42,11 @@ function interpolate(start: number, end: number, amount: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function normalizePanoramaGap(value: number) {
+  const steppedValue = PANORAMA_GAP_MIN + Math.round((value - PANORAMA_GAP_MIN) / PANORAMA_GAP_STEP) * PANORAMA_GAP_STEP
+  return clamp(steppedValue, PANORAMA_GAP_MIN, PANORAMA_GAP_MAX)
 }
 
 export function getWorldSize(isMobile: boolean) {
@@ -431,6 +437,7 @@ function tryPackPanorama(
   groupCount: number,
   groupContrast: number,
   heroScale: number,
+  cardGap: number,
   seed: number,
   scale: number,
   textMetrics: Record<string, TextCardMetrics>,
@@ -443,14 +450,17 @@ function tryPackPanorama(
   const secondaryItems = items.slice(1)
   const naturalBaseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220)
   const baseHeight = naturalBaseHeight * scale
+  // Half the selected gap is reserved on each side of cards and the hero,
+  // keeping visible edge-to-edge spacing consistent across the whole layout.
+  const heroClearance = cardGap / 2
   const measuredHeroText = hero.type === 'text' ? textMetrics[hero.id] : undefined
   const heroHeight = measuredHeroText?.height ?? naturalBaseHeight * 1.65 * clamp(heroScale, 50, 150) / 100
   const heroWidth = measuredHeroText?.width ?? heroHeight * Math.max(0.1, getItemAspectRatio(hero))
   const heroOuter: Rectangle = {
-    x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
-    y: contentBounds.y + (contentBounds.height - heroHeight) / 2 - PANORAMA_HERO_CLEARANCE,
-    width: heroWidth + PANORAMA_HERO_CLEARANCE * 2,
-    height: heroHeight + PANORAMA_HERO_CLEARANCE * 2,
+    x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - heroClearance,
+    y: contentBounds.y + (contentBounds.height - heroHeight) / 2 - heroClearance,
+    width: heroWidth + heroClearance * 2,
+    height: heroHeight + heroClearance * 2,
   }
 
   if (
@@ -462,8 +472,8 @@ function tryPackPanorama(
 
   const layouts: Record<string, ItemLayout> = {
     [hero.id]: {
-      x: heroOuter.x + PANORAMA_HERO_CLEARANCE + heroWidth / 2,
-      y: heroOuter.y + PANORAMA_HERO_CLEARANCE + heroHeight / 2,
+      x: heroOuter.x + heroClearance + heroWidth / 2,
+      y: heroOuter.y + heroClearance + heroHeight / 2,
       width: heroWidth,
       height: heroHeight,
       rotation: 0,
@@ -480,8 +490,8 @@ function tryPackPanorama(
     const measuredText = entry.item.type === 'text' ? textMetrics[entry.item.id] : undefined
     const height = measuredText?.height ?? baseHeight * getPanoramaGroupFactor(entry.group, groupCount, groupContrast)
     const width = measuredText?.width ?? height * Math.max(0.1, getItemAspectRatio(entry.item))
-    const outerWidth = width + PANORAMA_GAP
-    const outerHeight = height + PANORAMA_GAP
+    const outerWidth = width + cardGap
+    const outerHeight = height + cardGap
     const target = getGuidedTarget(index, entry.group, contentBounds, random)
     const fits = (free: Rectangle) => outerWidth <= free.width && outerHeight <= free.height
     const isAboveOrBelowHero = (free: Rectangle) => free.y + free.height <= heroOuter.y || free.y >= heroOuter.y + heroOuter.height
@@ -518,8 +528,8 @@ function tryPackPanorama(
     if (!placed) return undefined
 
     layouts[entry.item.id] = {
-      x: placed.x + PANORAMA_GAP / 2 + width / 2,
-      y: placed.y + PANORAMA_GAP / 2 + height / 2,
+      x: placed.x + cardGap / 2 + width / 2,
+      y: placed.y + cardGap / 2 + height / 2,
       width,
       height,
       rotation: 0,
@@ -549,6 +559,7 @@ export function generatePanoramaLayout(
   const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
   const groupContrast = clamp(settings.panorama.groupContrast, 0, 150)
   const heroScale = clamp(settings.panorama.heroScale, 50, 150)
+  const cardGap = normalizePanoramaGap(settings.panorama.cardGap)
   const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent)
   const findLargestLayout = (contrast: number, mainScale: number, maxScale: number) => {
     let layout: Record<string, ItemLayout> | undefined
@@ -557,7 +568,7 @@ export function generatePanoramaLayout(
 
     for (let attempt = 0; attempt < 18; attempt += 1) {
       const scale = (low + high) / 2
-      const candidate = tryPackPanorama(items, world, groupCount, contrast, mainScale, seed, scale, textMetrics)
+      const candidate = tryPackPanorama(items, world, groupCount, contrast, mainScale, cardGap, seed, scale, textMetrics)
       if (candidate) {
         layout = candidate
         low = scale
