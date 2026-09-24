@@ -32,6 +32,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
   const followBaseRef = useRef({ x: 0, y: 0 })
+  const inertiaLevelRef = useRef(settings.panorama.inertia)
+  inertiaLevelRef.current = settings.panorama.inertia
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
   const [measuredTextMetrics, setMeasuredTextMetrics] = useState<{ signature: string; values: Record<string, { width: number; height: number }> }>({ signature: '', values: {} })
   const textSignature = items
@@ -63,8 +65,8 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
   }, [textItems, textSignature])
 
   const panorama = useMemo(
-    () => isPanorama ? generatePanoramaLayout(items, settings, seed, panoramaLayoutWidth, textMetrics) : undefined,
-    [isPanorama, items, settings, seed, panoramaLayoutWidth, textMetrics],
+    () => isPanorama ? generatePanoramaLayout(items, settings, seed, panoramaLayoutWidth, textMetrics, isMobile ? viewport.height : undefined) : undefined,
+    [isMobile, isPanorama, items, settings, seed, panoramaLayoutWidth, textMetrics, viewport.height],
   )
   const layouts = useMemo(
     () => panorama?.layouts ?? generateLayout(items, settings, seed, isMobile, { viewport, textMetrics }),
@@ -108,9 +110,29 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
     const panoramaVerticalRange = PANORAMA_VERTICAL_DRAG_RANGE
     const canPanVertically = isPanorama && !isMobile
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let prefersReducedMotion = motionPreference.matches
+    const syncMotionPreference = (event: MediaQueryListEvent) => { prefersReducedMotion = event.matches }
+    motionPreference.addEventListener('change', syncMotionPreference)
+    const coastProxy = { x: 0, y: 0 }
+    let coastTween: gsap.core.Tween | undefined
+    let previousWrappedX = 0
+    let unwrappedX = 0
+    let dragSamples: Array<{ x: number; y: number; time: number }> = []
     const normalizePanoramaX = (x: number) => {
       const halfWidth = world.width / 2
       return ((x + halfWidth) % world.width + world.width) % world.width - halfWidth
+    }
+    const recordDragSample = (draggableInstance: Draggable, time = performance.now()) => {
+      let deltaX = draggableInstance.x - previousWrappedX
+      if (isPanorama) {
+        if (deltaX > world.width / 2) deltaX -= world.width
+        else if (deltaX < -world.width / 2) deltaX += world.width
+      }
+      unwrappedX += deltaX
+      previousWrappedX = draggableInstance.x
+      dragSamples.push({ x: unwrappedX, y: draggableInstance.y, time })
+      while (dragSamples.length > 2 && time - dragSamples[0].time > 140) dragSamples.shift()
     }
 
     const draggable = Draggable.create(worldNode, {
@@ -128,20 +150,83 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
       ignore: '.settings-toggle',
       edgeResistance: 0.78,
       liveSnap: isPanorama ? { x: normalizePanoramaX } : undefined,
+      onPressInit(this: Draggable) {
+        coastTween?.kill()
+        coastTween = undefined
+        gsap.killTweensOf(worldNode)
+        this.update()
+        previousWrappedX = this.x
+        unwrappedX = this.x
+        dragSamples = [{ x: unwrappedX, y: this.y, time: performance.now() }]
+      },
       onPress(this: Draggable) {
         isDraggingRef.current = true
-        gsap.killTweensOf(worldNode)
         followBaseRef.current = { x: this.x, y: this.y }
+      },
+      onDrag(this: Draggable) {
+        recordDragSample(this)
       },
       onRelease(this: Draggable) {
         isDraggingRef.current = false
         followBaseRef.current = { x: this.x, y: this.y }
+      },
+      onDragEnd(this: Draggable) {
+        if (!isPanorama || prefersReducedMotion) return
+        const energy = inertiaLevelRef.current
+        if (energy <= 0) return
+
+        const releaseTime = performance.now()
+        recordDragSample(this, releaseTime)
+        const recentSamples = dragSamples.filter((sample) => releaseTime - sample.time <= 110)
+        const first = recentSamples[0]
+        const last = recentSamples[recentSamples.length - 1]
+        if (!first || !last || recentSamples.length < 2 || releaseTime - last.time > 110) return
+
+        const elapsedSeconds = Math.max((last.time - first.time) / 1000, 0.016)
+        const velocityX = gsap.utils.clamp(-1600, 1600, (last.x - first.x) / elapsedSeconds)
+        const velocityY = canPanVertically
+          ? gsap.utils.clamp(-900, 900, (last.y - first.y) / elapsedSeconds)
+          : 0
+        if (Math.hypot(velocityX, velocityY) < 70) return
+
+        const energyRatio = gsap.utils.clamp(0, 1, energy / 100)
+        const duration = 0.15 + energyRatio * 1.2
+        const maxHorizontalDistance = Math.min(world.width * 0.65, 760)
+        const coastDistanceX = gsap.utils.clamp(
+          -maxHorizontalDistance,
+          maxHorizontalDistance,
+          velocityX * duration / 2,
+        )
+        const targetY = canPanVertically
+          ? gsap.utils.clamp(-panoramaVerticalRange, panoramaVerticalRange, this.y + velocityY * duration / 2)
+          : this.y
+
+        coastProxy.x = unwrappedX
+        coastProxy.y = this.y
+        coastTween = gsap.to(coastProxy, {
+          x: unwrappedX + coastDistanceX,
+          y: targetY,
+          duration,
+          ease: 'power2.out',
+          onUpdate: () => gsap.set(worldNode, {
+            x: normalizePanoramaX(coastProxy.x),
+            y: gsap.utils.clamp(-panoramaVerticalRange, panoramaVerticalRange, coastProxy.y),
+          }),
+          onComplete: () => {
+            gsap.set(worldNode, { x: normalizePanoramaX(coastProxy.x), y: targetY })
+            draggable.update()
+            followBaseRef.current = { x: draggable.x, y: draggable.y }
+            coastTween = undefined
+          },
+        })
       },
     })[0]
     gsap.set(worldNode, { xPercent: -50, yPercent: -50, x: 0, y: 0 })
     draggable.update()
 
     return () => {
+      coastTween?.kill()
+      motionPreference.removeEventListener('change', syncMotionPreference)
       draggable.kill()
     }
   }, [isCursorMode, isMobile, isPanorama, isPreview, world.height, world.width])

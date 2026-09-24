@@ -27,6 +27,7 @@ const INITIAL_SETTINGS: CollageSettings = {
     cardGap: 4,
     groupContrast: 60,
     heroScale: 150,
+    inertia: 40,
   },
   previewImages: {},
 }
@@ -88,7 +89,7 @@ export function App() {
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
   const [mediaPreparation, setMediaPreparation] = useState<{ current: number; total: number } | null>(null)
   const objectUrlsRef = useRef(new Set<string>())
-  const isMobile = useMediaQuery('(max-width: 760px)')
+  const isMobile = useMediaQuery('(max-width: 599px)')
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedItemId), [items, selectedItemId])
   const galleryItems = useMemo(() => items.filter((item) => item.type !== 'text' && item.source), [items])

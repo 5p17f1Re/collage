@@ -575,7 +575,7 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
 }
 .settings-toggle:hover { background: oklch(1 0 0 / .96); }
 
-@media (max-width: 760px) {
+@media (max-width: 599px) {
   .app-shell {
     height: 100dvh;
     min-height: 0;
@@ -588,9 +588,9 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
   .app-topbar p { display: none; }
   .app-topbar { grid-column: 1; grid-row: 1; }
   .collage-stage { grid-column: 1; grid-row: 1; order: initial; height: auto; min-height: 0; }
-  .app-shell.app-shell--panorama { height: auto; min-height: 720px; grid-template-rows: 720px auto; overflow: auto; }
-  .app-shell--panorama .collage-stage--panorama { grid-column: 1; grid-row: 1; height: 720px; min-height: 720px; }
-  .collage-stage--preview.collage-stage--panorama { height: 720px; min-height: 720px; }
+  .app-shell.app-shell--panorama { height: auto; min-height: 85dvh; grid-template-rows: 85dvh auto; overflow: auto; }
+  .app-shell--panorama .collage-stage--panorama { grid-column: 1; grid-row: 1; height: 85dvh; min-height: 85dvh; }
+  .collage-stage--preview.collage-stage--panorama { height: 85dvh; min-height: 85dvh; }
   .app-shell--panorama .sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow: visible; }
   .sidebar { grid-column: 1; grid-row: 2; min-height: 0; overflow-y: auto; border-right: 0; border-top: 1px solid oklch(0.79 0 0); order: initial; }
   .collage-stage__hint { right: 11px; bottom: 10px; }

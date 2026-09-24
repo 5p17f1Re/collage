@@ -454,8 +454,18 @@ function tryPackPanorama(
   // keeping visible edge-to-edge spacing consistent across the whole layout.
   const heroClearance = cardGap / 2
   const measuredHeroText = hero.type === 'text' ? textMetrics[hero.id] : undefined
-  const heroHeight = measuredHeroText?.height ?? naturalBaseHeight * 1.65 * clamp(heroScale, 50, 150) / 100
-  const heroWidth = measuredHeroText?.width ?? heroHeight * Math.max(0.1, getItemAspectRatio(hero))
+  const heroAspectRatio = Math.max(0.1, getItemAspectRatio(hero))
+  const maxHeroHeight = Math.max(1, Math.min(
+    contentBounds.height - heroClearance * 2,
+    (contentBounds.width - heroClearance * 2) / heroAspectRatio,
+  ))
+  const naturalHeroHeight = naturalBaseHeight * 1.65
+  const maxScaleThatFits = Math.max(150, Math.min(250, maxHeroHeight / naturalHeroHeight * 100))
+  const effectiveHeroScale = heroScale <= 150
+    ? heroScale
+    : interpolate(150, maxScaleThatFits, (heroScale - 150) / 100)
+  const heroHeight = measuredHeroText?.height ?? Math.min(maxHeroHeight, naturalHeroHeight * effectiveHeroScale / 100)
+  const heroWidth = measuredHeroText?.width ?? heroHeight * heroAspectRatio
   const heroOuter: Rectangle = {
     x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - heroClearance,
     y: contentBounds.y + (contentBounds.height - heroHeight) / 2 - heroClearance,
@@ -541,11 +551,11 @@ function tryPackPanorama(
   return layouts
 }
 
-export function getPanoramaWorldSize(viewportWidth: number, spanPercent: number) {
+export function getPanoramaWorldSize(viewportWidth: number, spanPercent: number, stageHeight?: number) {
   const safeViewportWidth = Math.max(1, viewportWidth || FALLBACK_VIEWPORT.width)
   return {
     width: safeViewportWidth * clamp(spanPercent, 50, 150) / 50,
-    height: PANORAMA_STAGE_HEIGHT,
+    height: Math.max(1, stageHeight ?? PANORAMA_STAGE_HEIGHT),
   }
 }
 
@@ -555,12 +565,13 @@ export function generatePanoramaLayout(
   seed: number,
   viewportWidth: number,
   textMetrics: Record<string, TextCardMetrics> = {},
+  stageHeight?: number,
 ): PanoramaLayoutResult {
   const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
   const groupContrast = clamp(settings.panorama.groupContrast, 0, 150)
-  const heroScale = clamp(settings.panorama.heroScale, 50, 150)
+  const heroScale = clamp(settings.panorama.heroScale, 50, 250)
   const cardGap = normalizePanoramaGap(settings.panorama.cardGap)
-  const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent)
+  const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent, stageHeight)
   const findLargestLayout = (contrast: number, mainScale: number, maxScale: number) => {
     let layout: Record<string, ItemLayout> | undefined
     let low = 0.02

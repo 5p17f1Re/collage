@@ -21,6 +21,8 @@ export interface PanoramaSettings {
   groupContrast: number
   /** Main Panorama card scale, independent from secondary size groups. */
   heroScale: number
+  /** 0 disables post-swipe coast; higher values extend its duration and distance. */
+  inertia: number
 }
 
 export interface CollageItem {
