@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
-import { generateLayout, generatePanoramaLayout, getCursorFollowRange, getWorldSize } from '../lib/layout'
+import { generateLayout, generatePanoramaLayout, getCursorFollowRange, getWorldSize, PANORAMA_VERTICAL_DRAG_RANGE } from '../lib/layout'
+import { getEstimatedTextCardMetrics, measureTextCardMetrics } from '../lib/textCardMetrics'
 import type { CollageItem, CollageSettings, LayoutMode } from '../types'
 
 gsap.registerPlugin(Draggable)
@@ -14,39 +15,58 @@ interface CollageStageProps {
   isMobile: boolean
   isPreview: boolean
   layoutMode: LayoutMode
+  panoramaReferenceWidth: number
+  onPanoramaReferenceWidthChange: (width: number) => void
   onOpenGallery: (itemId: string, origin: { x: number; y: number }) => void
   onAspectRatioChange: (itemId: string, aspectRatio: number) => void
 }
 
 function getItemAspectRatio(item: CollageItem) {
-  if (item.type !== 'text') return item.aspectRatio
-  if (item.textSize === 'small') return 1.3
-  if (item.textSize === 'large') return 1.56
-  return 1.42
+  return item.aspectRatio
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview, layoutMode, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
   const followBaseRef = useRef({ x: 0, y: 0 })
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
+  const [measuredTextMetrics, setMeasuredTextMetrics] = useState<{ signature: string; values: Record<string, { width: number; height: number }> }>({ signature: '', values: {} })
+  const textSignature = items
+    .filter((item) => item.type === 'text')
+    .map((item) => `${item.id}\u0000${item.textStyle ?? 'gramatika'}\u0000${item.text ?? ''}`)
+    .join('\u0001')
+  const textItems = useMemo(() => items.filter((item) => item.type === 'text'), [textSignature])
+  const textMetrics = useMemo(() => Object.fromEntries(textItems
+    .map((item) => [item.id, measuredTextMetrics.signature === textSignature && measuredTextMetrics.values[item.id]
+      ? measuredTextMetrics.values[item.id]
+      : getEstimatedTextCardMetrics(item)])), [textItems, measuredTextMetrics, textSignature])
   const viewport = useMemo(() => stageSize.width > 0 && stageSize.height > 0
     ? stageSize
     : isMobile ? { width: 390, height: 320 } : { width: 1200, height: 800 }, [isMobile, stageSize])
   const isPanorama = layoutMode === 'panorama'
+  const panoramaLayoutWidth = panoramaReferenceWidth > 0 ? panoramaReferenceWidth : viewport.width
   const isCursorMode = !isPanorama && settings.interactionMode === 'cursor'
   const heroItemId = isPanorama
     ? items[0]?.id
     : settings.heroEnabled && items[0]?.type !== 'text' ? items[0]?.id : undefined
   const followRange = getCursorFollowRange(viewport, isMobile)
+
+  useLayoutEffect(() => {
+    let isCurrent = true
+    void measureTextCardMetrics(textItems).then((metrics) => {
+      if (isCurrent) setMeasuredTextMetrics({ signature: textSignature, values: metrics })
+    })
+    return () => { isCurrent = false }
+  }, [textItems, textSignature])
+
   const panorama = useMemo(
-    () => isPanorama ? generatePanoramaLayout(items, settings, seed, viewport.width) : undefined,
-    [isPanorama, items, settings, seed, viewport.width],
+    () => isPanorama ? generatePanoramaLayout(items, settings, seed, panoramaLayoutWidth, textMetrics) : undefined,
+    [isPanorama, items, settings, seed, panoramaLayoutWidth, textMetrics],
   )
   const layouts = useMemo(
-    () => panorama?.layouts ?? generateLayout(items, settings, seed, isMobile, { viewport }),
-    [panorama, items, settings, seed, isMobile, viewport],
+    () => panorama?.layouts ?? generateLayout(items, settings, seed, isMobile, { viewport, textMetrics }),
+    [panorama, items, settings, seed, isMobile, viewport, textMetrics],
   )
   const world = panorama?.world ?? getWorldSize(isMobile)
 
@@ -67,6 +87,12 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
   }, [])
 
   useLayoutEffect(() => {
+    if (isPanorama && !isPreview && stageSize.width > 0) {
+      onPanoramaReferenceWidthChange(stageSize.width)
+    }
+  }, [isPanorama, isPreview, onPanoramaReferenceWidthChange, stageSize.width])
+
+  useLayoutEffect(() => {
     const stage = stageRef.current
     const worldNode = worldRef.current
     if (!stage || !worldNode) return undefined
@@ -78,7 +104,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
     const stageBounds = stage.getBoundingClientRect()
     const edgePadding = 280
     const verticalRange = Math.max((world.height - stageBounds.height) / 2 + edgePadding, 80)
-    const panoramaVerticalRange = Math.max((world.height - stageBounds.height) / 2, 0)
+    const panoramaVerticalRange = PANORAMA_VERTICAL_DRAG_RANGE
     const canPanVertically = isPanorama && !isMobile
     const normalizePanoramaX = (x: number) => {
       const halfWidth = world.width / 2
@@ -190,7 +216,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
             height: layout.height,
             zIndex: layout.zIndex,
             transform: `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--card-scale, 1))`,
-            aspectRatio: String(aspectRatio),
+            aspectRatio: item.type === 'text' ? 'auto' : String(aspectRatio),
             '--hover-scale': String(isPanorama ? 1 : settings.hoverScale / 100),
           }
 
@@ -201,7 +227,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
 
           if (item.type === 'text') {
             return (
-              <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text collage-card--${item.textSize ?? 'medium'} ${isHero ? 'collage-card--hero' : ''}`} style={cardStyle as CSSProperties}>
+              <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text ${isHero ? 'collage-card--hero' : ''}`} data-text-style={item.textStyle ?? 'gramatika'} style={cardStyle as CSSProperties}>
                 <p>{item.text || 'Напишите текст'}</p>
               </article>
             )

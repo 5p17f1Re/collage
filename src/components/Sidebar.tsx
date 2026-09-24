@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
-import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, PreviewImages, PreviewImageSlot, ScaleMode, TextCardSize } from '../types'
+import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, PreviewImages, PreviewImageSlot, ScaleMode, TextCardStyle } from '../types'
 import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, EyeIcon, ShuffleIcon } from './icons'
 
 interface SidebarProps {
@@ -236,10 +236,9 @@ function ItemInspector({
 }) {
   if (!item) return null
 
-  const textCardSizes: Array<{ value: TextCardSize; label: string }> = [
-    { value: 'small', label: 'S' },
-    { value: 'medium', label: 'M' },
-    { value: 'large', label: 'L' },
+  const textStyles: Array<{ value: TextCardStyle; label: string }> = [
+    { value: 'gramatika', label: 'Gramatika' },
+    { value: 'wremena', label: 'Wremena' },
   ]
 
   return (
@@ -249,16 +248,23 @@ function ItemInspector({
         <>
           <label className="field-label">Текст<textarea value={item.text ?? ''} onChange={(event) => onUpdate({ text: event.target.value })} placeholder="Напишите текст" rows={4} /></label>
           <div className="control-group">
-            <span className="control-label">Размер блока</span>
-            <div className="segmented-control segmented-control--three">
-              {textCardSizes.map((size) => <button key={size.value} className={item.textSize === size.value ? 'is-active' : ''} onClick={() => onUpdate({ textSize: size.value })}>{size.label}</button>)}
+            <span className="control-label">Стиль текста</span>
+            <div className="segmented-control text-style-control" aria-label="Стиль текста">
+              {textStyles.map((style) => (
+                <button
+                  key={style.value}
+                  className={(item.textStyle ?? 'gramatika') === style.value ? 'is-active' : ''}
+                  aria-pressed={(item.textStyle ?? 'gramatika') === style.value}
+                  onClick={() => onUpdate({ textStyle: style.value })}
+                >{style.label}</button>
+              ))}
             </div>
           </div>
         </>
       ) : (
         <label className="field-label">Подпись<textarea value={item.caption} onChange={(event) => onUpdate({ caption: event.target.value })} placeholder="Добавьте подпись к изображению" rows={3} /></label>
       )}
-      {layoutMode === 'panorama' && !isPanoramaHero && (
+      {layoutMode === 'panorama' && item.type !== 'text' && !isPanoramaHero && (
         <div className="control-group">
           <span className="control-label">Размер в панораме</span>
           <div className="segmented-control size-group-control" style={{ gridTemplateColumns: `repeat(${groupCount + 1}, 1fr)` }}>
@@ -269,7 +275,7 @@ function ItemInspector({
           </div>
         </div>
       )}
-      {layoutMode === 'panorama' && isPanoramaHero && <p className="item-inspector__hint">Первый материал — главный кадр: отдельная доминанта вне размерных групп.</p>}
+      {layoutMode === 'panorama' && isPanoramaHero && item.type !== 'text' && <p className="item-inspector__hint">Первый материал — главный кадр: отдельная доминанта вне размерных групп.</p>}
     </section>
   )
 }

@@ -14,7 +14,7 @@ const INITIAL_SETTINGS: CollageSettings = {
   scaleMode: 'priority',
   globalScale: 100,
   hoverScale: 124,
-  showGrid: true,
+  showGrid: false,
   gridColor: '#4a4a4a',
   interactionMode: 'drag',
   heroEnabled: false,
@@ -81,6 +81,7 @@ export function App() {
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
+  const [panoramaReferenceWidth, setPanoramaReferenceWidth] = useState(0)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
@@ -141,8 +142,8 @@ export function App() {
       type: 'text',
       caption: '',
       text: DEFAULT_TEXT,
-      textSize: 'large',
-      aspectRatio: 1.56,
+      textStyle: 'gramatika',
+      aspectRatio: 1,
     }
 
     setItems((currentItems) => [...currentItems, textItem])
@@ -236,7 +237,7 @@ export function App() {
           {layoutMode === 'panorama' && settings.previewImages.top && (
             <img className="clean-preview__surround clean-preview__surround--top" src={settings.previewImages.top.source} alt={settings.previewImages.top.name} draggable={false} />
           )}
-          <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview layoutMode={layoutMode} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
+          <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview layoutMode={layoutMode} panoramaReferenceWidth={panoramaReferenceWidth} onPanoramaReferenceWidthChange={setPanoramaReferenceWidth} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
           {layoutMode === 'panorama' && settings.previewImages.bottom && (
             <img className="clean-preview__surround clean-preview__surround--bottom" src={settings.previewImages.bottom.source} alt={settings.previewImages.bottom.name} draggable={false} />
           )}
@@ -287,6 +288,8 @@ export function App() {
         isMobile={isMobile}
         isPreview={false}
         layoutMode={layoutMode}
+        panoramaReferenceWidth={panoramaReferenceWidth}
+        onPanoramaReferenceWidthChange={setPanoramaReferenceWidth}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
         onAspectRatioChange={handleAspectRatioChange}
       />

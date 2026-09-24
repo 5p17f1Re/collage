@@ -1,6 +1,6 @@
 export type CollageItemType = 'image' | 'video' | 'text'
 export type ScaleMode = 'priority' | 'uniform'
-export type TextCardSize = 'small' | 'medium' | 'large'
+export type TextCardStyle = 'gramatika' | 'wremena'
 export type InteractionMode = 'drag' | 'cursor'
 export type LayoutMode = 'field' | 'panorama'
 export type PreviewImageSlot = 'top' | 'bottom'
@@ -26,7 +26,7 @@ export interface CollageItem {
   source?: string
   caption: string
   text?: string
-  textSize?: TextCardSize
+  textStyle?: TextCardStyle
   aspectRatio: number
   isObjectUrl?: boolean
   /** Undefined lets Panorama assign a group automatically. */

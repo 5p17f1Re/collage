@@ -1,4 +1,5 @@
 import type { CollageItem, CollageSettings, ItemLayout } from '../types'
+import type { TextCardMetrics } from './textCardMetrics'
 
 const DESKTOP_WORLD = { width: 2600, height: 1540 }
 const MOBILE_WORLD = { width: 2060, height: 620 }
@@ -13,7 +14,8 @@ const MAX_EDGE_CLIP = 0.4
 // sqrt(60%) on each axis guarantees that the card remains at least 60% visible.
 const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
 export const PANORAMA_HEIGHT = 720
-const PANORAMA_VERTICAL_OVERFLOW = 160
+export const PANORAMA_VERTICAL_DRAG_RANGE = 80
+const PANORAMA_STAGE_HEIGHT = PANORAMA_HEIGHT + PANORAMA_VERTICAL_DRAG_RANGE * 2
 const PANORAMA_GAP = 14
 const PANORAMA_HERO_CLEARANCE = 32
 const PANORAMA_GUIDE_RATIOS = [0.14, 0.36, 0.64, 0.86]
@@ -52,10 +54,7 @@ export function getCursorFollowRange(viewport: { width: number; height: number }
 }
 
 function getItemAspectRatio(item: CollageItem) {
-  if (item.type !== 'text') return item.aspectRatio
-  if (item.textSize === 'small') return 1.3
-  if (item.textSize === 'large') return 1.56
-  return 1.42
+  return item.aspectRatio
 }
 
 function getHeroItem(items: CollageItem[], settings: CollageSettings) {
@@ -165,6 +164,7 @@ function generateScrapbookLayout(
   seed: number,
   isMobile: boolean,
   viewport: { width: number; height: number },
+  textMetrics: Record<string, TextCardMetrics>,
 ): Record<string, ItemLayout> {
   const random = createSeededRandom(seed)
   const world = getWorldSize(isMobile)
@@ -217,12 +217,13 @@ function generateScrapbookLayout(
 
   secondaryItems.forEach((item, index) => {
     const isText = item.type === 'text'
+    const measuredText = isText ? textMetrics[item.id] : undefined
     const itemAspectRatio = Math.max(0.1, getItemAspectRatio(item))
     const priorityScale = heroItem || settings.scaleMode === 'uniform'
       ? 1
       : interpolate(MAX_SCALE, MIN_SCALE, Math.pow(index / Math.max(secondaryItems.length - 1, 1), 0.72))
-    const height = secondaryHeight * priorityScale * (isText ? 1.14 : 1)
-    const width = height * itemAspectRatio * (isText ? 1.1 : 1)
+    const height = measuredText?.height ?? secondaryHeight * priorityScale
+    const width = measuredText?.width ?? height * itemAspectRatio
     const slot = distributedSlots[index % distributedSlots.length]
     const bounds = getCursorBounds(safeViewport, width, height, followRange)
     const jitterX = (random() - 0.5) * safeViewport.width / Math.max(10, mediaCount) * 1.7
@@ -258,9 +259,9 @@ export function generateLayout(
   settings: CollageSettings,
   seed: number,
   isMobile: boolean,
-  options?: { viewport?: { width: number; height: number } },
+  options?: { viewport?: { width: number; height: number }; textMetrics?: Record<string, TextCardMetrics> },
 ): Record<string, ItemLayout> {
-  return generateScrapbookLayout(items, settings, seed, isMobile, options?.viewport ?? FALLBACK_VIEWPORT)
+  return generateScrapbookLayout(items, settings, seed, isMobile, options?.viewport ?? FALLBACK_VIEWPORT, options?.textMetrics ?? {})
 }
 
 interface Rectangle {
@@ -344,12 +345,18 @@ function getPanoramaHeroHeightFactor(
   assignments: Map<string, number>,
   groupCount: number,
   groupContrast: number,
+  baseHeight: number,
+  textMetrics: Record<string, TextCardMetrics>,
 ) {
   const heroAspect = Math.max(0.1, getItemAspectRatio(hero))
   const largestSecondaryAreaFactor = secondary.reduce((largest, item) => {
     const group = assignments.get(item.id) ?? 0
     const scale = getPanoramaGroupFactor(group, groupCount, groupContrast)
-    return Math.max(largest, scale ** 2 * Math.max(0.1, getItemAspectRatio(item)))
+    const textMetric = item.type === 'text' ? textMetrics[item.id] : undefined
+    const areaFactor = textMetric
+      ? textMetric.width * textMetric.height / Math.max(baseHeight ** 2, 1)
+      : scale ** 2 * Math.max(0.1, getItemAspectRatio(item))
+    return Math.max(largest, areaFactor)
   }, 0)
 
   // A hero that is merely taller can still lose to a wide image. Use its
@@ -447,6 +454,7 @@ function tryPackPanorama(
   groupContrast: number,
   seed: number,
   scale: number,
+  textMetrics: Record<string, TextCardMetrics>,
 ) {
   if (!items.length) return {} as Record<string, ItemLayout>
 
@@ -455,8 +463,17 @@ function tryPackPanorama(
   const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
   const secondaryItems = items.slice(1)
   const baseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220) * scale
-  const heroHeight = baseHeight * getPanoramaHeroHeightFactor(hero, secondaryItems, assignments, groupCount, groupContrast)
-  const heroWidth = heroHeight * Math.max(0.1, getItemAspectRatio(hero))
+  const measuredHeroText = hero.type === 'text' ? textMetrics[hero.id] : undefined
+  const heroHeight = measuredHeroText?.height ?? baseHeight * getPanoramaHeroHeightFactor(
+    hero,
+    secondaryItems,
+    assignments,
+    groupCount,
+    groupContrast,
+    baseHeight,
+    textMetrics,
+  )
+  const heroWidth = measuredHeroText?.width ?? heroHeight * Math.max(0.1, getItemAspectRatio(hero))
   const heroOuter: Rectangle = {
     x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
     y: contentBounds.y + (contentBounds.height - heroHeight) / 2 - PANORAMA_HERO_CLEARANCE,
@@ -488,8 +505,9 @@ function tryPackPanorama(
     .sort((first, second) => second.group - first.group || first.noise - second.noise)
 
   for (const [index, entry] of secondary.entries()) {
-    const height = baseHeight * getPanoramaGroupFactor(entry.group, groupCount, groupContrast)
-    const width = height * Math.max(0.1, getItemAspectRatio(entry.item))
+    const measuredText = entry.item.type === 'text' ? textMetrics[entry.item.id] : undefined
+    const height = measuredText?.height ?? baseHeight * getPanoramaGroupFactor(entry.group, groupCount, groupContrast)
+    const width = measuredText?.width ?? height * Math.max(0.1, getItemAspectRatio(entry.item))
     const outerWidth = width + PANORAMA_GAP
     const outerHeight = height + PANORAMA_GAP
     const target = getGuidedTarget(index, entry.group, contentBounds, random)
@@ -522,7 +540,7 @@ export function getPanoramaWorldSize(viewportWidth: number, spanPercent: number)
   const safeViewportWidth = Math.max(1, viewportWidth || FALLBACK_VIEWPORT.width)
   return {
     width: safeViewportWidth * clamp(spanPercent, 50, 150) / 50,
-    height: PANORAMA_HEIGHT + PANORAMA_VERTICAL_OVERFLOW,
+    height: PANORAMA_STAGE_HEIGHT,
   }
 }
 
@@ -531,6 +549,7 @@ export function generatePanoramaLayout(
   settings: CollageSettings,
   seed: number,
   viewportWidth: number,
+  textMetrics: Record<string, TextCardMetrics> = {},
 ): PanoramaLayoutResult {
   const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
   const groupContrast = clamp(settings.panorama.groupContrast, 0, 100)
@@ -541,7 +560,7 @@ export function generatePanoramaLayout(
 
   for (let attempt = 0; attempt < 18; attempt += 1) {
     const scale = (low + high) / 2
-    const candidate = tryPackPanorama(items, world, groupCount, groupContrast, seed, scale)
+    const candidate = tryPackPanorama(items, world, groupCount, groupContrast, seed, scale, textMetrics)
     if (candidate) {
       layout = candidate
       low = scale
