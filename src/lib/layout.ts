@@ -16,8 +16,10 @@ const MAX_CORNER_AXIS_CLIP = 1 - Math.sqrt(1 - MAX_EDGE_CLIP)
 export const PANORAMA_HEIGHT = 720
 export const PANORAMA_VERTICAL_DRAG_RANGE = 80
 const PANORAMA_STAGE_HEIGHT = PANORAMA_HEIGHT + PANORAMA_VERTICAL_DRAG_RANGE * 2
-const PANORAMA_GAP = 14
-const PANORAMA_HERO_CLEARANCE = 32
+const PANORAMA_GAP = 8
+const PANORAMA_HERO_CLEARANCE = 24
+const PANORAMA_REFERENCE_CONTRAST = 60
+const PANORAMA_REFERENCE_HERO_SCALE = 100
 const PANORAMA_GUIDE_RATIOS = [0.14, 0.36, 0.64, 0.86]
 const PANORAMA_CLUSTER_RATIOS = [0.1, 0.28, 0.42, 0.58, 0.72, 0.9]
 
@@ -334,35 +336,11 @@ function getPanoramaGroupAssignments(items: CollageItem[], groupCount: number, s
 }
 
 function getPanoramaGroupFactor(group: number, groupCount: number, groupContrast: number) {
-  const contrast = clamp(groupContrast, 0, 100) / 100
-  const smallestGroupFactor = interpolate(1, 0.4, contrast)
+  const contrast = clamp(groupContrast, 0, 150)
+  const smallestGroupFactor = contrast <= 100
+    ? interpolate(1, 0.4, contrast / 100)
+    : interpolate(0.4, 0.25, (contrast - 100) / 50)
   return groupCount === 1 ? 1 : interpolate(smallestGroupFactor, 1, group / (groupCount - 1))
-}
-
-function getPanoramaHeroHeightFactor(
-  hero: CollageItem,
-  secondary: CollageItem[],
-  assignments: Map<string, number>,
-  groupCount: number,
-  groupContrast: number,
-  baseHeight: number,
-  textMetrics: Record<string, TextCardMetrics>,
-) {
-  const heroAspect = Math.max(0.1, getItemAspectRatio(hero))
-  const largestSecondaryAreaFactor = secondary.reduce((largest, item) => {
-    const group = assignments.get(item.id) ?? 0
-    const scale = getPanoramaGroupFactor(group, groupCount, groupContrast)
-    const textMetric = item.type === 'text' ? textMetrics[item.id] : undefined
-    const areaFactor = textMetric
-      ? textMetric.width * textMetric.height / Math.max(baseHeight ** 2, 1)
-      : scale ** 2 * Math.max(0.1, getItemAspectRatio(item))
-    return Math.max(largest, areaFactor)
-  }, 0)
-
-  // A hero that is merely taller can still lose to a wide image. Use its
-  // footprint instead: it is at least 2.25× the largest secondary card area,
-  // while retaining a clear 1.65× height ratio for ordinary proportions.
-  return Math.max(1.65, Math.sqrt(largestSecondaryAreaFactor * 2.25 / heroAspect))
 }
 
 function getGuidedTarget(
@@ -452,6 +430,7 @@ function tryPackPanorama(
   world: { width: number; height: number },
   groupCount: number,
   groupContrast: number,
+  heroScale: number,
   seed: number,
   scale: number,
   textMetrics: Record<string, TextCardMetrics>,
@@ -462,17 +441,10 @@ function tryPackPanorama(
   const contentBounds = getPanoramaContentBounds(world)
   const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
   const secondaryItems = items.slice(1)
-  const baseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220) * scale
+  const naturalBaseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220)
+  const baseHeight = naturalBaseHeight * scale
   const measuredHeroText = hero.type === 'text' ? textMetrics[hero.id] : undefined
-  const heroHeight = measuredHeroText?.height ?? baseHeight * getPanoramaHeroHeightFactor(
-    hero,
-    secondaryItems,
-    assignments,
-    groupCount,
-    groupContrast,
-    baseHeight,
-    textMetrics,
-  )
+  const heroHeight = measuredHeroText?.height ?? naturalBaseHeight * 1.65 * clamp(heroScale, 50, 150) / 100
   const heroWidth = measuredHeroText?.width ?? heroHeight * Math.max(0.1, getItemAspectRatio(hero))
   const heroOuter: Rectangle = {
     x: contentBounds.x + (contentBounds.width - heroWidth) / 2 - PANORAMA_HERO_CLEARANCE,
@@ -511,13 +483,36 @@ function tryPackPanorama(
     const outerWidth = width + PANORAMA_GAP
     const outerHeight = height + PANORAMA_GAP
     const target = getGuidedTarget(index, entry.group, contentBounds, random)
+    const fits = (free: Rectangle) => outerWidth <= free.width && outerHeight <= free.height
+    const isAboveOrBelowHero = (free: Rectangle) => free.y + free.height <= heroOuter.y || free.y >= heroOuter.y + heroOuter.height
+    const isBesideHero = (free: Rectangle) => free.y < heroOuter.y + heroOuter.height && free.y + free.height > heroOuter.y
+    let preferredFreeRectangles: Rectangle[] = []
+
+    if (groupCount > 1 && entry.group === 0) {
+      preferredFreeRectangles = freeRectangles.filter((free) => isAboveOrBelowHero(free) && fits(free))
+    } else if (groupCount > 1 && entry.group === groupCount - 1) {
+      preferredFreeRectangles = freeRectangles.filter((free) => isBesideHero(free) && fits(free))
+    }
+
+    let desiredY = target.y
+    let guideY = target.guideY
+    if (entry.group === 0 && groupCount > 1 && preferredFreeRectangles.length) {
+      const preferBottom = index % 2 === 1
+      const preferredRail = preferredFreeRectangles.find((free) => preferBottom
+        ? free.y >= heroOuter.y + heroOuter.height
+        : free.y + free.height <= heroOuter.y)
+        ?? preferredFreeRectangles[0]
+      desiredY = preferredRail.y + preferredRail.height / 2
+      guideY = desiredY
+    }
+
     const placed = placeAlongGuides(
-      freeRectangles,
+      preferredFreeRectangles.length ? preferredFreeRectangles : freeRectangles,
       outerWidth,
       outerHeight,
       target.x,
-      target.y,
-      target.guideY,
+      desiredY,
+      guideY,
       random,
     )
     if (!placed) return undefined
@@ -552,22 +547,33 @@ export function generatePanoramaLayout(
   textMetrics: Record<string, TextCardMetrics> = {},
 ): PanoramaLayoutResult {
   const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
-  const groupContrast = clamp(settings.panorama.groupContrast, 0, 100)
+  const groupContrast = clamp(settings.panorama.groupContrast, 0, 150)
+  const heroScale = clamp(settings.panorama.heroScale, 50, 150)
   const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent)
-  let layout: Record<string, ItemLayout> | undefined
-  let low = 0.02
-  let high = 4
+  const findLargestLayout = (contrast: number, mainScale: number, maxScale: number) => {
+    let layout: Record<string, ItemLayout> | undefined
+    let low = 0.02
+    let high = maxScale
 
-  for (let attempt = 0; attempt < 18; attempt += 1) {
-    const scale = (low + high) / 2
-    const candidate = tryPackPanorama(items, world, groupCount, groupContrast, seed, scale, textMetrics)
-    if (candidate) {
-      layout = candidate
-      low = scale
-    } else {
-      high = scale
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      const scale = (low + high) / 2
+      const candidate = tryPackPanorama(items, world, groupCount, contrast, mainScale, seed, scale, textMetrics)
+      if (candidate) {
+        layout = candidate
+        low = scale
+      } else {
+        high = scale
+      }
     }
+
+    return { layout: layout ?? {}, scale: low }
   }
 
-  return { layouts: layout ?? {}, world }
+  // Keep the default secondary scale stable: changing contrast or reducing the
+  // hero should free space, not trigger the packer to enlarge all other cards.
+  const baseline = findLargestLayout(PANORAMA_REFERENCE_CONTRAST, PANORAMA_REFERENCE_HERO_SCALE, 4)
+  if (groupContrast === PANORAMA_REFERENCE_CONTRAST && heroScale === PANORAMA_REFERENCE_HERO_SCALE) {
+    return { layouts: baseline.layout, world }
+  }
+  return { layouts: findLargestLayout(groupContrast, heroScale, baseline.scale).layout, world }
 }

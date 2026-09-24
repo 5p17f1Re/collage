@@ -5,6 +5,8 @@ import { Draggable } from 'gsap/Draggable'
 import { generateLayout, generatePanoramaLayout, getCursorFollowRange, getWorldSize, PANORAMA_VERTICAL_DRAG_RANGE } from '../lib/layout'
 import { getEstimatedTextCardMetrics, measureTextCardMetrics } from '../lib/textCardMetrics'
 import type { CollageItem, CollageSettings, LayoutMode } from '../types'
+import { VisibilityVideo } from './VisibilityVideo'
+import { ImageWithPlaceholder } from './ImageWithPlaceholder'
 
 gsap.registerPlugin(Draggable)
 
@@ -247,14 +249,17 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, layou
               aria-label={`Открыть галерею: ${item.name}`}
               data-hero={isHero || undefined}
             >
-              {item.type === 'image' && item.source && <img src={item.source} alt={item.name} draggable={false} onLoad={(event) => {
+              {item.type === 'image' && item.source && <ImageWithPlaceholder src={item.source} placeholder={item.placeholder} alt={item.name} onLoad={(event) => {
                 const image = event.currentTarget
                 onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)
               }} />}
-              {item.type === 'video' && item.source && <video src={item.source} muted playsInline preload="none" aria-label={item.name} onLoadedMetadata={(event) => {
-                const video = event.currentTarget
-                onAspectRatioChange(item.id, video.videoWidth / video.videoHeight)
-              }} />}
+              {item.type === 'video' && item.source && <>
+                {item.placeholder && <img className="collage-card__placeholder" src={item.placeholder} alt="" aria-hidden="true" draggable={false} />}
+                <VisibilityVideo src={item.source} poster={item.poster} label={item.name} preload="none" onLoadedMetadata={(event) => {
+                  const video = event.currentTarget
+                  onAspectRatioChange(item.id, video.videoWidth / video.videoHeight)
+                }} />
+              </>}
             </button>
           )
         }))}

@@ -4,6 +4,7 @@ import { GalleryDialog } from './components/GalleryDialog'
 import { CloseIcon } from './components/icons'
 import { Sidebar } from './components/Sidebar'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { createVideoPreviews } from './lib/mediaPlaceholders'
 import { SAMPLE_ITEMS } from './sampleItems'
 import type { CollageItem, CollageSettings, LayoutMode, PanoramaSettings, PreviewImageSlot } from './types'
 
@@ -24,6 +25,7 @@ const INITIAL_SETTINGS: CollageSettings = {
     groupCount: 3,
     spanPercent: 100,
     groupContrast: 60,
+    heroScale: 100,
   },
   previewImages: {},
 }
@@ -77,12 +79,13 @@ function shuffleItems(items: CollageItem[], preserveFirst = false) {
 export function App() {
   const [items, setItems] = useState<CollageItem[]>(() => SAMPLE_ITEMS.map((item) => ({ ...item })))
   const [settings, setSettings] = useState<CollageSettings>(INITIAL_SETTINGS)
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => window.location.hash === '#panorama' ? 'panorama' : 'field')
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => window.location.hash === '#field' ? 'field' : 'panorama')
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
   const [isPreview, setIsPreview] = useState(false)
   const [panoramaReferenceWidth, setPanoramaReferenceWidth] = useState(0)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: { x: number; y: number } }>()
+  const [mediaPreparation, setMediaPreparation] = useState<{ current: number; total: number } | null>(null)
   const objectUrlsRef = useRef(new Set<string>())
   const isMobile = useMediaQuery('(max-width: 760px)')
 
@@ -95,7 +98,7 @@ export function App() {
 
   useEffect(() => {
     function syncModeFromHash() {
-      setLayoutMode(window.location.hash === '#panorama' ? 'panorama' : 'field')
+      setLayoutMode(window.location.hash === '#field' ? 'field' : 'panorama')
     }
 
     window.addEventListener('hashchange', syncModeFromHash)
@@ -111,28 +114,43 @@ export function App() {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [isPreview])
 
-  function handleAddFiles(files: File[]) {
-    const newItems = files.map((file) => {
-      const source = URL.createObjectURL(file)
-      objectUrlsRef.current.add(source)
+  async function handleAddFiles(files: File[]) {
+    if (!files.length) return
+    const newItems: CollageItem[] = []
+    setMediaPreparation({ current: 0, total: files.length })
 
-      return {
-        id: createItemId('local'),
-        name: file.name.replace(/\.[^/.]+$/, ''),
-        type: getMediaType(file),
-        source,
-        caption: '',
-        aspectRatio: 1,
-        isObjectUrl: true,
-      } satisfies CollageItem
-    })
+    try {
+      for (const [index, file] of files.entries()) {
+        setMediaPreparation({ current: index + 1, total: files.length })
+        const mediaType = getMediaType(file)
+        const previews: { poster?: string; placeholder?: string } = mediaType === 'video'
+          ? await createVideoPreviews(file)
+          : {}
+        const source = URL.createObjectURL(file)
+        objectUrlsRef.current.add(source)
 
-    setItems((currentItems) => {
-      const hasOnlyStarterItems = currentItems.every((item) => item.id.startsWith('sample-'))
-      return hasOnlyStarterItems ? newItems : [...currentItems, ...newItems]
-    })
-    setSelectedItemId(newItems[0]?.id)
-    setSeed((currentSeed) => currentSeed + 1)
+        newItems.push({
+          id: createItemId('local'),
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          type: mediaType,
+          source,
+          placeholder: previews.placeholder,
+          poster: 'poster' in previews ? previews.poster : undefined,
+          caption: '',
+          aspectRatio: 1,
+          isObjectUrl: true,
+        })
+      }
+
+      setItems((currentItems) => {
+        const hasOnlyStarterItems = currentItems.every((item) => item.id.startsWith('sample-'))
+        return hasOnlyStarterItems ? newItems : [...currentItems, ...newItems]
+      })
+      setSelectedItemId(newItems[0]?.id)
+      setSeed((currentSeed) => currentSeed + 1)
+    } finally {
+      setMediaPreparation(null)
+    }
   }
 
   function handleAddText() {
@@ -179,11 +197,8 @@ export function App() {
 
   function handleLayoutModeChange(mode: LayoutMode) {
     setLayoutMode(mode)
-    if (mode === 'panorama') {
-      if (window.location.hash !== '#panorama') window.location.hash = 'panorama'
-      return
-    }
-    if (window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    const nextHash = `#${mode}`
+    if (window.location.hash !== nextHash) window.location.hash = mode
   }
 
   function handlePanoramaSettingsChange(updates: Partial<PanoramaSettings>) {
@@ -251,8 +266,9 @@ export function App() {
   return (
     <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''}`}>
       <Sidebar
-          items={items}
-          selectedItem={selectedItem}
+        items={items}
+        selectedItem={selectedItem}
+        mediaPreparation={mediaPreparation}
           settings={settings}
           layoutMode={layoutMode}
           onAddFiles={handleAddFiles}

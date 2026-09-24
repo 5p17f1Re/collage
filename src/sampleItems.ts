@@ -1,10 +1,6 @@
 import type { CollageItem } from './types'
 
-const SAMPLE_ASSET_URLS = import.meta.glob<string>('./assets/sample-set/*.jpg', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-})
+const OPTIMIZED_SAMPLE_BASE_URL = `${import.meta.env.BASE_URL}optimized/sample-set/`
 
 // Keep the lead image fixed so it remains the Panorama anchor; the remaining
 // files use a one-time shuffled order for a varied but repeatable first load.
@@ -45,18 +41,39 @@ const SAMPLE_ASPECT_RATIOS: Record<string, number> = {
   '25': 1600 / 1200,
 }
 
-export const SAMPLE_ITEMS: CollageItem[] = SAMPLE_ASSET_ORDER.map((filename) => {
+const SAMPLE_IMAGE_ITEMS: CollageItem[] = SAMPLE_ASSET_ORDER.map((filename) => {
   const name = filename.replace(/\.jpg$/i, '')
-  const source = SAMPLE_ASSET_URLS[`./assets/sample-set/${filename}`]
-
-  if (!source) throw new Error(`Missing default collage image: ${filename}`)
 
   return {
     id: `sample-${name}`,
     name,
     type: 'image',
-    source,
+    source: `${OPTIMIZED_SAMPLE_BASE_URL}${name}.webp`,
+    placeholder: `${OPTIMIZED_SAMPLE_BASE_URL}${name}-placeholder.webp`,
     caption: '',
     aspectRatio: SAMPLE_ASPECT_RATIOS[name] ?? 1,
   }
 })
+
+const SAMPLE_TEXT_ITEMS: CollageItem[] = [
+  {
+    id: 'sample-text-wremena',
+    name: 'Времена',
+    type: 'text',
+    text: 'Плотные заросли папоротника, добавлявшие саду первобытной дикости, на\u00a0время стали важным элементом садово-парковой-культуры.',
+    textStyle: 'wremena',
+    caption: '',
+    aspectRatio: 1,
+  },
+  {
+    id: 'sample-text-gramatika',
+    name: 'Граматика',
+    type: 'text',
+    text: 'В серии «Папоротники» мы обращаемся к\u00a0fern fever — «папоротниковой лихорадке», изменившей сады и парки викторианской эпохи.',
+    textStyle: 'gramatika',
+    caption: '',
+    aspectRatio: 1,
+  },
+]
+
+export const SAMPLE_ITEMS: CollageItem[] = [...SAMPLE_IMAGE_ITEMS, ...SAMPLE_TEXT_ITEMS]

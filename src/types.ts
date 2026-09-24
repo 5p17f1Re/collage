@@ -15,8 +15,10 @@ export type PreviewImages = Partial<Record<PreviewImageSlot, PreviewImage>>
 export interface PanoramaSettings {
   groupCount: number
   spanPercent: number
-  /** 0 keeps groups nearly equal; 100 maximises their size difference. */
+  /** 0 keeps groups equal; values above 100 make the smallest groups smaller. */
   groupContrast: number
+  /** Main Panorama card scale, independent from secondary size groups. */
+  heroScale: number
 }
 
 export interface CollageItem {
@@ -24,6 +26,8 @@ export interface CollageItem {
   name: string
   type: CollageItemType
   source?: string
+  placeholder?: string
+  poster?: string
   caption: string
   text?: string
   textStyle?: TextCardStyle

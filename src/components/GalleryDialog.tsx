@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { AnimationEvent, CSSProperties, MouseEvent } from 'react'
 import type { CollageItem } from '../types'
 import { CloseIcon } from './icons'
+import { VisibilityVideo } from './VisibilityVideo'
+import { ImageWithPlaceholder } from './ImageWithPlaceholder'
 
 interface GalleryDialogProps {
   items: CollageItem[]
@@ -89,8 +91,8 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
               data-closing={item.id === closingTargetId ? 'true' : undefined}
             >
               <div className="gallery__media" onClick={(event) => handleMediaClick(event, item.id)}>
-                {item.type === 'image' && item.source && <img src={item.source} alt={item.name} />}
-                {item.type === 'video' && item.source && <video src={item.source} muted playsInline controls />}
+                {item.type === 'image' && item.source && <ImageWithPlaceholder src={item.source} placeholder={item.placeholder} alt={item.name} />}
+                {item.type === 'video' && item.source && <VisibilityVideo src={item.source} poster={item.poster} label={item.name} preload="metadata" controls />}
               </div>
               <footer className="gallery__caption">
                 <strong>{item.name}</strong>

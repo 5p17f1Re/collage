@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
 import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, PreviewImages, PreviewImageSlot, ScaleMode, TextCardStyle } from '../types'
-import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, EyeIcon, ShuffleIcon } from './icons'
+import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, PanelCollapseIcon, ShuffleIcon } from './icons'
 
 interface SidebarProps {
   items: CollageItem[]
   selectedItem: CollageItem | undefined
   settings: CollageSettings
   layoutMode: LayoutMode
-  onAddFiles: (files: File[]) => void
+  onAddFiles: (files: File[]) => Promise<void>
+  mediaPreparation: { current: number; total: number } | null
   onAddText: () => void
   onSelectItem: (itemId: string) => void
   onReorderItems: (sourceId: string, targetId: string) => void
@@ -34,6 +35,8 @@ function RangeControl({
   step = 1,
   suffix = '%',
   valueLabel,
+  hint,
+  emphasizedTick,
   onChange,
 }: {
   label: string
@@ -43,12 +46,36 @@ function RangeControl({
   step?: number
   suffix?: string
   valueLabel?: string
+  hint?: string
+  emphasizedTick?: number
   onChange: (value: number) => void
 }) {
+  const rangeSteps = Math.floor((max - min) / step) + 1
+  const tickCount = Math.min(5, rangeSteps)
+  const tickPositions = Array.from({ length: tickCount }, (_, index) => tickCount === 1 ? 50 : (index / (tickCount - 1)) * 100)
+  const emphasizedPosition = emphasizedTick === undefined ? undefined : ((emphasizedTick - min) / (max - min)) * 100
+  if (emphasizedPosition !== undefined && !tickPositions.some((position) => Math.abs(position - emphasizedPosition) < 0.5)) {
+    tickPositions.push(emphasizedPosition)
+  }
+  tickPositions.sort((left, right) => left - right)
+
   return (
     <label className="range-control">
       <span className="range-control__label"><span>{label}</span><output>{valueLabel ?? `${value}${suffix}`}</output></span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <span className="range-control__scale">
+        <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+        <span className="range-control__ticks" aria-hidden="true">
+          {tickPositions.map((position) => {
+            const isEmphasized = emphasizedPosition !== undefined && Math.abs(position - emphasizedPosition) < 0.5
+            return (
+              <span key={position} className={`range-control__tick${isEmphasized ? ' range-control__tick--emphasized' : ''}`} style={{ left: `${position}%` }}>
+                {isEmphasized && <span className="range-control__tick-label">{emphasizedTick}{suffix}</span>}
+              </span>
+            )
+          })}
+        </span>
+      </span>
+      {hint && <small className="range-control__hint">{hint}</small>}
     </label>
   )
 }
@@ -92,10 +119,9 @@ function HeroControl({ enabled, onChange }: { enabled: boolean; onChange: (enabl
 function LayoutModeControl({ value, onChange }: { value: LayoutMode; onChange: (value: LayoutMode) => void }) {
   return (
     <section className="mode-panel" aria-label="Режим раскладки">
-      <div className="section-heading"><span>Режим</span></div>
       <div className="segmented-control" aria-label="Режим раскладки">
-        <button className={value === 'field' ? 'is-active' : ''} onClick={() => onChange('field')}>Свободное поле</button>
         <button className={value === 'panorama' ? 'is-active' : ''} onClick={() => onChange('panorama')}>Панорама</button>
+        <button className={value === 'field' ? 'is-active' : ''} onClick={() => onChange('field')}>Свободное поле</button>
       </div>
     </section>
   )
@@ -275,7 +301,7 @@ function ItemInspector({
           </div>
         </div>
       )}
-      {layoutMode === 'panorama' && isPanoramaHero && item.type !== 'text' && <p className="item-inspector__hint">Первый материал — главный кадр: отдельная доминанта вне размерных групп.</p>}
+      {layoutMode === 'panorama' && isPanoramaHero && item.type !== 'text' && <p className="item-inspector__hint">Размер главного кадра настраивается отдельно от остальных изображений ниже.</p>}
     </section>
   )
 }
@@ -283,6 +309,7 @@ function ItemInspector({
 export function Sidebar({
   items,
   selectedItem,
+  mediaPreparation,
   settings,
   layoutMode,
   onAddFiles,
@@ -303,22 +330,21 @@ export function Sidebar({
   isSettingsOpen,
 }: SidebarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [isListOpen, setIsListOpen] = useState(true)
+  const [isListOpen, setIsListOpen] = useState(false)
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
-    if (files.length) onAddFiles(files)
+    if (files.length) void onAddFiles(files)
     event.target.value = ''
   }
 
   return (
     <aside className="sidebar">
-      <header className="sidebar__header"><span>COLLAGE LAB</span><span className="sidebar__count">{items.length}</span></header>
       <LayoutModeControl value={layoutMode} onChange={onLayoutModeChange} />
       {layoutMode === 'panorama' && <PreviewImagesControl images={previewImages} onChange={onPreviewImageChange} onClear={onPreviewImageClear} />}
-      <section className="media-panel" aria-label="Порядок композиции">
+      <section className="media-panel" aria-label="Медиа">
         <div className="section-heading">
-          <span>Порядок</span>
+          <span>Медиа</span>
           <span className="section-heading__actions">
             <button className="section-heading__shuffle" type="button" onClick={onShuffleItems}><ShuffleIcon />Перемешать</button>
             <button className="section-heading__toggle" type="button" onClick={() => setIsListOpen((current) => !current)} aria-expanded={isListOpen}>
@@ -344,10 +370,15 @@ export function Sidebar({
           ))}
         </div>}
         <div className="media-actions">
-          <input ref={inputRef} className="visually-hidden" id="media-upload" type="file" accept="image/*,video/*" multiple onChange={handleFileChange} />
-          <button className="text-button" onClick={() => inputRef.current?.click()}><AddIcon />Добавить медиа</button>
+          <input ref={inputRef} className="visually-hidden" id="media-upload" type="file" accept="image/*,video/*" multiple disabled={mediaPreparation !== null} onChange={handleFileChange} />
+          <button className="text-button" disabled={mediaPreparation !== null} onClick={() => inputRef.current?.click()}><AddIcon />Добавить медиа</button>
           <button className="text-button" onClick={onAddText}><AddIcon />Текстовый блок</button>
         </div>
+        <p className="media-actions__note" role="status" aria-live="polite">
+          {mediaPreparation
+            ? `Готовлю превью: ${mediaPreparation.current} из ${mediaPreparation.total}…`
+            : 'Фото загружаются без сжатия. Для видео создаётся постер первого кадра.'}
+        </p>
       </section>
       <ItemInspector
         item={selectedItem}
@@ -367,7 +398,8 @@ export function Sidebar({
           {layoutMode === 'panorama' ? (
             <>
               <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
-              <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={100} valueLabel={`${settings.panorama.groupContrast}%`} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
+              <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={150} valueLabel={`${settings.panorama.groupContrast}%`} hint="После 100% маленькие карточки уменьшаются дальше; крупные не растут." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
+              {items[0]?.type !== 'text' && <RangeControl label="Размер главной картинки" value={settings.panorama.heroScale} min={50} max={150} valueLabel={`${settings.panorama.heroScale}%`} onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
               <RangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={`${settings.panorama.spanPercent}% · ${settings.panorama.spanPercent / 50} экр.`} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
             </>
           ) : (
@@ -389,7 +421,7 @@ export function Sidebar({
         </section>
       )}
       <footer className="sidebar__footer">
-        <button className="button button--dark" onClick={onPreview}><EyeIcon />Чистый просмотр</button>
+        <button className="button button--dark" onClick={onPreview}><PanelCollapseIcon />Свернуть</button>
       </footer>
     </aside>
   )
