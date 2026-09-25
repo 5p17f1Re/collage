@@ -52,6 +52,9 @@ button:disabled { opacity: .32; cursor: not-allowed; }
   overflow: hidden;
   background: oklch(0.98 0 0);
 }
+.app-shell--settings-collapsed { grid-template-columns: minmax(0, 1fr); }
+.app-shell--settings-collapsed .sidebar { display: none; }
+.app-shell--settings-collapsed .collage-stage { grid-column: 1; }
 
 .app-topbar {
   grid-column: 1 / -1;
@@ -358,6 +361,11 @@ input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 1px s
   transform-origin: center center;
   transition: transform .22s cubic-bezier(.2, .8, .2, 1), filter .22s ease;
 }
+.collage-card--entrance { animation: collage-card-entrance .32s ease-out var(--media-entrance-delay, 0ms) both; }
+@keyframes collage-card-entrance {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .collage-card--hero { z-index: 200 !important; }
 .collage-card--gallery-source-hidden { visibility: hidden !important; pointer-events: none !important; }
 button.collage-card { padding: 0; cursor: zoom-in; }
@@ -566,6 +574,7 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
   font-size: 10px;
   font-weight: 700;
 }
+.app-shell--settings-collapsed .settings-toggle { left: 14px; }
 .settings-toggle:hover { background: oklch(1 0 0 / .96); }
 
 @media (max-width: 599px) {
@@ -590,6 +599,13 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
   .media-panel, .item-inspector, .settings-panel, .mode-panel, .preview-images { padding: 16px 14px; }
   .sidebar__footer { padding: 12px 14px 16px; }
   .settings-toggle { left: 14px; bottom: calc(54svh + 14px); }
+  .settings-toggle--open { bottom: calc(54svh + 14px); }
+  .app-shell--panorama .settings-toggle--open { bottom: calc(15dvh + 14px); }
+  .app-shell--settings-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .app-shell--settings-collapsed.app-shell--panorama { height: 100dvh; min-height: 0; overflow: hidden; }
+  .app-shell--settings-collapsed .collage-stage { grid-column: 1; grid-row: 1; }
+  .app-shell--settings-collapsed.app-shell--panorama .collage-stage--panorama { height: 100dvh; min-height: 100dvh; }
+  .app-shell--settings-collapsed .settings-toggle { bottom: 14px; }
   .item-row { height: 49px; }
   .dialog-backdrop { padding: 0; }
   .details-dialog { width: 100%; max-height: 100%; min-height: 100dvh; }
@@ -601,4 +617,5 @@ button.collage-card:focus-visible { z-index: 300 !important; --card-scale: var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
   .gallery.has-neighbors .gallery__item[data-neighbor] { animation-delay: 0s; }
+  .collage-card--entrance { animation: none; opacity: 1; }
 }

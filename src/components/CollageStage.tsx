@@ -29,6 +29,9 @@ function getItemAspectRatio(item: CollageItem) {
 }
 
 export function CollageStage({ items, settings, seed, isMobile, isPreview, isGalleryOpen, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
+  const [initialMediaOrder] = useState(() => new Map(items
+    .filter((item) => item.type !== 'text')
+    .map((item, index) => [item.id, index])))
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
@@ -328,6 +331,7 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
           const aspectRatio = getItemAspectRatio(item)
           const left = layout.x + copyOffset * world.width
           const isHero = item.id === heroItemId
+          const mediaEntranceIndex = initialMediaOrder.get(item.id)
           const cardStyle = {
             left,
             top: layout.y,
@@ -354,8 +358,11 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
           return (
             <button
               key={`${copyOffset}-${item.id}`}
-              className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''}`}
-              style={cardStyle as CSSProperties}
+              className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''} ${mediaEntranceIndex === undefined ? '' : 'collage-card--entrance'}`}
+              style={{
+                ...cardStyle,
+                ...(mediaEntranceIndex === undefined ? {} : { '--media-entrance-delay': `${mediaEntranceIndex * 55}ms` }),
+              } as CSSProperties}
               onPointerMove={(event) => {
                 const bounds = event.currentTarget.getBoundingClientRect()
                 event.currentTarget.style.setProperty('--reveal-x', `${(event.clientX - bounds.left) / bounds.width * 100}%`)

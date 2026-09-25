@@ -25,6 +25,7 @@ interface SidebarProps {
   onPreviewImageClear: (slot: PreviewImageSlot) => void
   onPreview: () => void
   isSettingsOpen: boolean
+  onToggleSettings: () => void
 }
 
 function RangeControl({
@@ -332,6 +333,7 @@ export function Sidebar({
   onPreviewImageClear,
   onPreview,
   isSettingsOpen,
+  onToggleSettings,
 }: SidebarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isListOpen, setIsListOpen] = useState(false)
@@ -343,7 +345,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside id="settings-sidebar" className="sidebar">
       <LayoutModeControl value={layoutMode} onChange={onLayoutModeChange} />
       {layoutMode === 'panorama' && <PreviewImagesControl images={previewImages} onChange={onPreviewImageChange} onClear={onPreviewImageClear} />}
       <section className="media-panel" aria-label="Медиа">
@@ -396,9 +398,20 @@ export function Sidebar({
         groupCount={settings.panorama.groupCount}
         isPanoramaHero={layoutMode === 'panorama' && selectedItem?.id === items[0]?.id}
       />
-      {isSettingsOpen && (
-        <section id="composition-settings" className="settings-panel" aria-label="Настройки композиции">
-          <div className="section-heading"><span>Композиция</span></div>
+      <section className="settings-panel" aria-label="Настройки композиции">
+        <div className="section-heading">
+          <span>Композиция</span>
+          <button
+            className="section-heading__toggle"
+            type="button"
+            aria-expanded={isSettingsOpen}
+            aria-controls="composition-settings"
+            onClick={onToggleSettings}
+          >
+            {isSettingsOpen ? 'Свернуть' : 'Настроить'}
+          </button>
+        </div>
+        <div id="composition-settings" hidden={!isSettingsOpen}>
           {layoutMode === 'panorama' ? (
             <>
               <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
@@ -424,8 +437,8 @@ export function Sidebar({
           <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
           <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
           <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
-        </section>
-      )}
+        </div>
+      </section>
       <footer className="sidebar__footer">
         <button className="button button--dark" onClick={onPreview}><PanelCollapseIcon />Свернуть</button>
       </footer>

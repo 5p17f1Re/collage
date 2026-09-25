@@ -84,6 +84,8 @@ export function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => window.location.hash === '#field' ? 'field' : 'panorama')
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isPreview, setIsPreview] = useState(false)
   const [panoramaReferenceWidth, setPanoramaReferenceWidth] = useState(0)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: HTMLButtonElement }>()
@@ -266,7 +268,7 @@ export function App() {
   }
 
   return (
-    <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''}`}>
+    <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''} ${isSidebarOpen ? '' : 'app-shell--settings-collapsed'}`}>
       <Sidebar
         items={items}
         selectedItem={selectedItem}
@@ -297,7 +299,8 @@ export function App() {
           onPreviewImageChange={handlePreviewImageChange}
           onPreviewImageClear={handlePreviewImageClear}
           onPreview={() => setIsPreview(true)}
-          isSettingsOpen={true}
+          isSettingsOpen={isSettingsOpen}
+          onToggleSettings={() => setIsSettingsOpen((isOpen) => !isOpen)}
       />
       <CollageStage
         items={items}
@@ -312,6 +315,15 @@ export function App() {
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
         onAspectRatioChange={handleAspectRatioChange}
       />
+      <button
+        className={`settings-toggle ${isSidebarOpen ? 'settings-toggle--open' : ''}`}
+        type="button"
+        aria-expanded={isSidebarOpen}
+        aria-controls="settings-sidebar"
+        onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
+      >
+        {isSidebarOpen ? 'Скрыть настройки' : 'Настройки'}
+      </button>
       {gallerySelection && galleryItems.length > 0 && <GalleryDialog items={galleryItems} activeItemId={gallerySelection.id} origin={gallerySelection.origin} onClose={() => setGallerySelection(undefined)} />}
     </div>
   )
