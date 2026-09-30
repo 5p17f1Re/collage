@@ -84,10 +84,11 @@ export function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => window.location.hash === '#field' ? 'field' : 'panorama')
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(SAMPLE_ITEMS[0]?.id)
   const [seed, setSeed] = useState(2648)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isPreview, setIsPreview] = useState(false)
   const [panoramaReferenceWidth, setPanoramaReferenceWidth] = useState(0)
+  const [hasPanoramaBeenDragged, setHasPanoramaBeenDragged] = useState(false)
   const [gallerySelection, setGallerySelection] = useState<{ id: string; origin: HTMLButtonElement }>()
   const [mediaPreparation, setMediaPreparation] = useState<{ current: number; total: number } | null>(null)
   const objectUrlsRef = useRef(new Set<string>())
@@ -256,7 +257,7 @@ export function App() {
           {layoutMode === 'panorama' && settings.previewImages.top && (
             <img className="clean-preview__surround clean-preview__surround--top" src={settings.previewImages.top.source} alt={settings.previewImages.top.name} draggable={false} />
           )}
-          <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview isGalleryOpen={Boolean(gallerySelection)} layoutMode={layoutMode} panoramaReferenceWidth={panoramaReferenceWidth} onPanoramaReferenceWidthChange={setPanoramaReferenceWidth} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
+          <CollageStage items={items} settings={settings} seed={seed} isMobile={isMobile} isPreview isGalleryOpen={Boolean(gallerySelection)} layoutMode={layoutMode} panoramaReferenceWidth={panoramaReferenceWidth} onPanoramaReferenceWidthChange={setPanoramaReferenceWidth} hasPanoramaBeenDragged={hasPanoramaBeenDragged} onPanoramaDragStart={() => setHasPanoramaBeenDragged(true)} onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })} onAspectRatioChange={handleAspectRatioChange} />
           {layoutMode === 'panorama' && settings.previewImages.bottom && (
             <img className="clean-preview__surround clean-preview__surround--bottom" src={settings.previewImages.bottom.source} alt={settings.previewImages.bottom.name} draggable={false} />
           )}
@@ -312,6 +313,8 @@ export function App() {
         layoutMode={layoutMode}
         panoramaReferenceWidth={panoramaReferenceWidth}
         onPanoramaReferenceWidthChange={setPanoramaReferenceWidth}
+        hasPanoramaBeenDragged={hasPanoramaBeenDragged}
+        onPanoramaDragStart={() => setHasPanoramaBeenDragged(true)}
         onOpenGallery={(itemId, origin) => setGallerySelection({ id: itemId, origin })}
         onAspectRatioChange={handleAspectRatioChange}
       />

@@ -3,6 +3,7 @@ import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import { Draggable } from 'gsap/Draggable'
 import { generateLayout, generatePanoramaLayout, getCursorFollowRange, getWorldSize, PANORAMA_VERTICAL_DRAG_RANGE } from '../lib/layout'
+import { criticallyDampedSpring } from '../lib/motion'
 import { getEstimatedTextCardMetrics, measureTextCardMetrics } from '../lib/textCardMetrics'
 import type { CollageItem, CollageSettings, LayoutMode } from '../types'
 import { VisibilityVideo } from './VisibilityVideo'
@@ -20,6 +21,8 @@ interface CollageStageProps {
   layoutMode: LayoutMode
   panoramaReferenceWidth: number
   onPanoramaReferenceWidthChange: (width: number) => void
+  hasPanoramaBeenDragged: boolean
+  onPanoramaDragStart: () => void
   onOpenGallery: (itemId: string, origin: HTMLButtonElement) => void
   onAspectRatioChange: (itemId: string, aspectRatio: number) => void
 }
@@ -28,13 +31,18 @@ function getItemAspectRatio(item: CollageItem) {
   return item.aspectRatio
 }
 
-export function CollageStage({ items, settings, seed, isMobile, isPreview, isGalleryOpen, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
+export function CollageStage({ items, settings, seed, isMobile, isPreview, isGalleryOpen, layoutMode, panoramaReferenceWidth, onPanoramaReferenceWidthChange, hasPanoramaBeenDragged, onPanoramaDragStart, onOpenGallery, onAspectRatioChange }: CollageStageProps) {
   const [initialMediaOrder] = useState(() => new Map(items
     .filter((item) => item.type !== 'text')
     .map((item, index) => [item.id, index])))
   const stageRef = useRef<HTMLDivElement>(null)
+  const edgeOffsetRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
+  const hasPanoramaBeenDraggedRef = useRef(hasPanoramaBeenDragged)
+  const onPanoramaDragStartRef = useRef(onPanoramaDragStart)
+  hasPanoramaBeenDraggedRef.current = hasPanoramaBeenDragged
+  onPanoramaDragStartRef.current = onPanoramaDragStart
   const isGalleryOpenRef = useRef(isGalleryOpen)
   const coastTweenRef = useRef<gsap.core.Tween | undefined>(undefined)
   const draggableRef = useRef<Draggable | undefined>(undefined)
@@ -81,6 +89,29 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
     [panorama, items, settings, seed, isMobile, viewport, textMetrics],
   )
   const world = panorama?.world ?? getWorldSize(isMobile)
+  const mediaEntranceOrder = useMemo(() => {
+    const initialMedia = items.filter((item) => item.type !== 'text' && initialMediaOrder.has(item.id))
+    if (!initialMedia.length) return new Map<string, number>()
+
+    const anchor = initialMedia.find((item) => item.id === heroItemId) ?? initialMedia[0]
+    const anchorLayout = layouts[anchor.id]
+    const orderedMedia = [...initialMedia].sort((first, second) => {
+      const firstLayout = layouts[first.id]
+      const secondLayout = layouts[second.id]
+      const getDistance = (layout: typeof firstLayout, itemId: string) => {
+        if (!layout || !anchorLayout) return itemId === anchor.id ? 0 : Number.POSITIVE_INFINITY
+        const rawHorizontalDistance = Math.abs(layout.x - anchorLayout.x)
+        const horizontalDistance = isPanorama
+          ? Math.min(rawHorizontalDistance, Math.max(0, world.width - rawHorizontalDistance))
+          : rawHorizontalDistance
+        return Math.hypot(horizontalDistance, layout.y - anchorLayout.y)
+      }
+      const distanceDifference = getDistance(firstLayout, first.id) - getDistance(secondLayout, second.id)
+      return distanceDifference || (initialMediaOrder.get(first.id)! - initialMediaOrder.get(second.id)!)
+    })
+
+    return new Map(orderedMedia.map((item, index) => [item.id, index]))
+  }, [heroItemId, initialMediaOrder, isPanorama, items, layouts, world.width])
 
   useLayoutEffect(() => {
     const stage = stageRef.current
@@ -173,6 +204,10 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
         followBaseRef.current = { x: this.x, y: this.y }
       },
       onDrag(this: Draggable) {
+        if (isPanorama && !hasPanoramaBeenDraggedRef.current) {
+          hasPanoramaBeenDraggedRef.current = true
+          onPanoramaDragStartRef.current()
+        }
         recordDragSample(this)
       },
       onRelease(this: Draggable) {
@@ -267,6 +302,99 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
   }, [isGalleryOpen])
 
   useLayoutEffect(() => {
+    const edgeOffsetNode = edgeOffsetRef.current
+    if (!edgeOffsetNode || !isPanorama) return undefined
+
+    const offset = { x: 0 }
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let prefersReducedMotion = motionPreference.matches
+    let destinationX = 0
+    let pointerX: number | undefined
+    let tween: gsap.core.Tween | undefined
+
+    const applyOffset = (value: number) => {
+      offset.x = value
+      edgeOffsetNode.style.setProperty('--edge-nudge-x', `${value}px`)
+    }
+
+    const moveTo = (nextX: number, immediate = false) => {
+      const targetX = prefersReducedMotion ? 0 : nextX
+      if (destinationX === targetX && !immediate) return
+      destinationX = targetX
+      tween?.kill()
+
+      if (immediate || prefersReducedMotion) {
+        tween = undefined
+        applyOffset(targetX)
+        return
+      }
+
+      tween = gsap.to(offset, {
+        x: targetX,
+        duration: 0.32,
+        ease: criticallyDampedSpring,
+        onUpdate: () => edgeOffsetNode.style.setProperty('--edge-nudge-x', `${offset.x}px`),
+        onComplete: () => {
+          applyOffset(targetX)
+          tween = undefined
+        },
+      })
+    }
+
+    const updateEdgeNudge = () => {
+      if (pointerX === undefined || isDraggingRef.current || isGalleryOpenRef.current || hasPanoramaBeenDragged) {
+        moveTo(0)
+        return
+      }
+
+      const edgeWidth = window.innerWidth * 0.1
+      const edgeNudge = pointerX < edgeWidth
+        ? 20
+        : pointerX > window.innerWidth - edgeWidth ? -20 : 0
+      moveTo(edgeNudge)
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return
+      pointerX = event.clientX
+      updateEdgeNudge()
+    }
+    const handlePointerDown = () => moveTo(0)
+    const handlePointerLeave = () => {
+      pointerX = undefined
+      moveTo(0)
+    }
+    const handlePointerOut = (event: PointerEvent) => {
+      if (event.relatedTarget === null) handlePointerLeave()
+    }
+    const handleWindowBlur = () => {
+      pointerX = undefined
+      moveTo(0)
+    }
+    const syncMotionPreference = (event: MediaQueryListEvent) => {
+      prefersReducedMotion = event.matches
+      if (prefersReducedMotion) moveTo(0, true)
+      else updateEdgeNudge()
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('pointerout', handlePointerOut)
+    window.addEventListener('blur', handleWindowBlur)
+    motionPreference.addEventListener('change', syncMotionPreference)
+
+    return () => {
+      tween?.kill()
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('pointerout', handlePointerOut)
+      window.removeEventListener('blur', handleWindowBlur)
+      motionPreference.removeEventListener('change', syncMotionPreference)
+      edgeOffsetNode.style.removeProperty('--edge-nudge-x')
+    }
+  }, [hasPanoramaBeenDragged, isGalleryOpen, isPanorama])
+
+  useLayoutEffect(() => {
     const stage = stageRef.current
     const worldNode = worldRef.current
     if (!stage || !worldNode || isMobile || !isCursorMode) return undefined
@@ -323,70 +451,72 @@ export function CollageStage({ items, settings, seed, isMobile, isPreview, isGal
       aria-label={isPanorama ? 'Панорамный интерактивный коллаж' : 'Интерактивный коллаж'}
     >
       <div className="collage-stage__hint" aria-hidden="true">{isCursorMode ? 'Ведите мышью, чтобы исследовать' : isPanorama && !isMobile ? 'Тяните в любую сторону' : isMobile ? 'Проведите влево или вправо' : 'Тяните, чтобы исследовать'}</div>
-      <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
-        {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
-        {(isCursorMode ? [0] : [-1, 0, 1]).flatMap((copyOffset) => items.map((item) => {
-          const layout = layouts[item.id]
-          if (!layout) return null
-          const aspectRatio = getItemAspectRatio(item)
-          const left = layout.x + copyOffset * world.width
-          const isHero = item.id === heroItemId
-          const mediaEntranceIndex = initialMediaOrder.get(item.id)
-          const cardStyle = {
-            left,
-            top: layout.y,
-            width: layout.width,
-            height: layout.height,
-            zIndex: layout.zIndex,
-            transform: `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--card-scale, 1))`,
-            aspectRatio: item.type === 'text' ? 'auto' : String(aspectRatio),
-            '--hover-scale': String(isPanorama ? 1 : settings.hoverScale / 100),
-          }
+      <div ref={edgeOffsetRef} className="collage-edge-offset">
+        <div ref={worldRef} className="collage-world" style={{ width: world.width, height: world.height }}>
+          {settings.showGrid && <div className="collage-grid" style={{ '--grid-color': settings.gridColor } as CSSProperties} aria-hidden="true" />}
+          {(isCursorMode ? [0] : [-1, 0, 1]).flatMap((copyOffset) => items.map((item) => {
+            const layout = layouts[item.id]
+            if (!layout) return null
+            const aspectRatio = getItemAspectRatio(item)
+            const left = layout.x + copyOffset * world.width
+            const isHero = item.id === heroItemId
+            const mediaEntranceIndex = mediaEntranceOrder.get(item.id)
+            const cardStyle = {
+              left,
+              top: layout.y,
+              width: layout.width,
+              height: layout.height,
+              zIndex: layout.zIndex,
+              transform: `translate(-50%, -50%) rotate(${layout.rotation}deg) scale(var(--card-scale, 1))`,
+              aspectRatio: item.type === 'text' ? 'auto' : String(aspectRatio),
+              '--hover-scale': String(isPanorama ? 1 : settings.hoverScale / 100),
+            }
 
-          const focusCard = (event: MouseEvent<HTMLButtonElement>) => {
-            onOpenGallery(item.id, event.currentTarget)
-          }
+            const focusCard = (event: MouseEvent<HTMLButtonElement>) => {
+              onOpenGallery(item.id, event.currentTarget)
+            }
 
-          if (item.type === 'text') {
+            if (item.type === 'text') {
+              return (
+                <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text ${isHero ? 'collage-card--hero' : ''}`} data-text-style={item.textStyle ?? 'gramatika'} style={cardStyle as CSSProperties}>
+                  <p>{item.text || 'Напишите текст'}</p>
+                </article>
+              )
+            }
+
             return (
-              <article key={`${copyOffset}-${item.id}`} className={`collage-card collage-card--text ${isHero ? 'collage-card--hero' : ''}`} data-text-style={item.textStyle ?? 'gramatika'} style={cardStyle as CSSProperties}>
-                <p>{item.text || 'Напишите текст'}</p>
-              </article>
+              <button
+                key={`${copyOffset}-${item.id}`}
+                className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''} ${mediaEntranceIndex === undefined ? '' : 'collage-card--entrance'}`}
+                style={{
+                  ...cardStyle,
+                  ...(mediaEntranceIndex === undefined ? {} : { '--media-entrance-delay': `${mediaEntranceIndex * 27.5}ms` }),
+                } as CSSProperties}
+                onPointerMove={(event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect()
+                  event.currentTarget.style.setProperty('--reveal-x', `${(event.clientX - bounds.left) / bounds.width * 100}%`)
+                  event.currentTarget.style.setProperty('--reveal-y', `${(event.clientY - bounds.top) / bounds.height * 100}%`)
+                }}
+                onClick={focusCard}
+                aria-label={`Открыть галерею: ${item.name}`}
+                data-hero={isHero || undefined}
+                data-gallery-id={item.id}
+              >
+                {item.type === 'image' && item.source && <ImageWithPlaceholder src={item.source} placeholder={item.placeholder} alt={item.name} onLoad={(event) => {
+                  const image = event.currentTarget
+                  onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)
+                }} />}
+                {item.type === 'video' && item.source && <>
+                  {item.placeholder && <img className="collage-card__placeholder" src={item.placeholder} alt="" aria-hidden="true" draggable={false} />}
+                  <VisibilityVideo src={item.source} poster={item.poster} label={item.name} preload="none" onLoadedMetadata={(event) => {
+                    const video = event.currentTarget
+                    onAspectRatioChange(item.id, video.videoWidth / video.videoHeight)
+                  }} />
+                </>}
+              </button>
             )
-          }
-
-          return (
-            <button
-              key={`${copyOffset}-${item.id}`}
-              className={`collage-card collage-card--${item.type} ${isHero ? 'collage-card--hero' : ''} ${mediaEntranceIndex === undefined ? '' : 'collage-card--entrance'}`}
-              style={{
-                ...cardStyle,
-                ...(mediaEntranceIndex === undefined ? {} : { '--media-entrance-delay': `${mediaEntranceIndex * 55}ms` }),
-              } as CSSProperties}
-              onPointerMove={(event) => {
-                const bounds = event.currentTarget.getBoundingClientRect()
-                event.currentTarget.style.setProperty('--reveal-x', `${(event.clientX - bounds.left) / bounds.width * 100}%`)
-                event.currentTarget.style.setProperty('--reveal-y', `${(event.clientY - bounds.top) / bounds.height * 100}%`)
-              }}
-              onClick={focusCard}
-              aria-label={`Открыть галерею: ${item.name}`}
-              data-hero={isHero || undefined}
-              data-gallery-id={item.id}
-            >
-              {item.type === 'image' && item.source && <ImageWithPlaceholder src={item.source} placeholder={item.placeholder} alt={item.name} onLoad={(event) => {
-                const image = event.currentTarget
-                onAspectRatioChange(item.id, image.naturalWidth / image.naturalHeight)
-              }} />}
-              {item.type === 'video' && item.source && <>
-                {item.placeholder && <img className="collage-card__placeholder" src={item.placeholder} alt="" aria-hidden="true" draggable={false} />}
-                <VisibilityVideo src={item.source} poster={item.poster} label={item.name} preload="none" onLoadedMetadata={(event) => {
-                  const video = event.currentTarget
-                  onAspectRatioChange(item.id, video.videoWidth / video.videoHeight)
-                }} />
-              </>}
-            </button>
-          )
-        }))}
+          }))}
+        </div>
       </div>
     </main>
   )

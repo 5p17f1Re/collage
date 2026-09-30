@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { ChangeEvent, DragEvent } from 'react'
+import type { ChangeEvent, CSSProperties, DragEvent } from 'react'
 import type { CollageItem, CollageSettings, InteractionMode, LayoutMode, PanoramaSettings, PreviewImages, PreviewImageSlot, ScaleMode, TextCardStyle } from '../types'
 import { AddIcon, ArrowDownIcon, ArrowUpIcon, DragIcon, PanelCollapseIcon, ShuffleIcon } from './icons'
 
@@ -83,6 +83,50 @@ function RangeControl({
       {hint && <small className="range-control__hint">{hint}</small>}
     </label>
   )
+}
+
+function CompactRangeControl({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  valueLabel,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step?: number
+  valueLabel: string
+  onChange: (value: number) => void
+}) {
+  const progress = ((value - min) / (max - min)) * 100
+
+  return (
+    <label className="compact-range" style={{ '--range-progress': `${progress}%` } as CSSProperties}>
+      <span className="compact-range__fill" aria-hidden="true" />
+      <span className="compact-range__label">{label}</span>
+      <output className="compact-range__value">{valueLabel}</output>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={label}
+        aria-valuetext={valueLabel}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  )
+}
+
+function formatScreenCount(spanPercent: number) {
+  const screens = spanPercent / 50
+  const number = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(screens)
+  return `${number} ${screens === 1 ? 'экран' : 'экрана'}`
 }
 
 function ScaleModeControl({ value, onChange }: { value: ScaleMode; onChange: (value: ScaleMode) => void }) {
@@ -347,7 +391,6 @@ export function Sidebar({
   return (
     <aside id="settings-sidebar" className="sidebar">
       <LayoutModeControl value={layoutMode} onChange={onLayoutModeChange} />
-      {layoutMode === 'panorama' && <PreviewImagesControl images={previewImages} onChange={onPreviewImageChange} onClear={onPreviewImageClear} />}
       <section className="media-panel" aria-label="Медиа">
         <div className="section-heading">
           <span>Медиа</span>
@@ -386,18 +429,6 @@ export function Sidebar({
             : 'Фото загружаются без сжатия. Для видео создаётся постер первого кадра.'}
         </p>
       </section>
-      <ItemInspector
-        item={selectedItem}
-        onUpdate={(updates) => {
-          if (selectedItem) onUpdateItem(selectedItem.id, updates)
-        }}
-        onRemove={() => {
-          if (selectedItem) onRemoveItem(selectedItem.id)
-        }}
-        layoutMode={layoutMode}
-        groupCount={settings.panorama.groupCount}
-        isPanoramaHero={layoutMode === 'panorama' && selectedItem?.id === items[0]?.id}
-      />
       <section className="settings-panel" aria-label="Настройки композиции">
         <div className="section-heading">
           <span>Композиция</span>
@@ -414,12 +445,20 @@ export function Sidebar({
         <div id="composition-settings" hidden={!isSettingsOpen}>
           {layoutMode === 'panorama' ? (
             <>
-              <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
-              <RangeControl label="Промежуток между фото" value={settings.panorama.cardGap} min={4} max={16} step={4} suffix="" valueLabel={`${settings.panorama.cardGap} px`} showTickLabels onChange={(cardGap) => onChangePanoramaSettings({ cardGap })} />
-              <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={150} valueLabel={`${settings.panorama.groupContrast}%`} hint="После 100% маленькие карточки уменьшаются дальше; крупные не растут." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
-              <RangeControl label="Энергия движения" value={settings.panorama.inertia} min={0} max={100} valueLabel={`${settings.panorama.inertia}%`} hint="0% — без доката; выше — дольше и дальше после свайпа." showTickLabels onChange={(inertia) => onChangePanoramaSettings({ inertia })} />
-              {items[0]?.type !== 'text' && <RangeControl label="Размер главной картинки" value={settings.panorama.heroScale} min={50} max={250} valueLabel={`${settings.panorama.heroScale}%`} hint="Увеличение ограничено рабочей полосой Панорамы." onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
-              <RangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={`${settings.panorama.spanPercent}% · ${settings.panorama.spanPercent / 50} экр.`} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
+              <CompactRangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={formatScreenCount(settings.panorama.spanPercent)} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
+              {items[0]?.type !== 'text' && <CompactRangeControl label="Главное изображение" value={settings.panorama.heroScale} min={50} max={250} valueLabel={`${settings.panorama.heroScale}%`} onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
+              <CompactRangeControl label="Отступы" value={settings.panorama.cardGap} min={0} max={16} step={4} valueLabel={`${settings.panorama.cardGap} px`} onChange={(cardGap) => onChangePanoramaSettings({ cardGap })} />
+              <details className="settings-panel__advanced">
+                <summary>Больше настроек</summary>
+                <div className="settings-panel__advanced-controls">
+                  <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
+                  <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={150} valueLabel={`${settings.panorama.groupContrast}%`} hint="После 100% маленькие карточки уменьшаются дальше; крупные не растут." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
+                  <RangeControl label="Энергия движения" value={settings.panorama.inertia} min={0} max={100} valueLabel={`${settings.panorama.inertia}%`} hint="0% — без доката; выше — дольше и дальше после свайпа." showTickLabels onChange={(inertia) => onChangePanoramaSettings({ inertia })} />
+                  <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
+                  <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
+                  <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
+                </div>
+              </details>
             </>
           ) : (
             <>
@@ -432,13 +471,26 @@ export function Sidebar({
               {settings.heroEnabled && <RangeControl label="Масштаб главного" value={settings.heroScale} min={40} max={120} onChange={(heroScale) => onChangeSettings({ heroScale })} />}
               <RangeControl label="Общий масштаб" value={settings.globalScale} min={60} max={160} onChange={(globalScale) => onChangeSettings({ globalScale })} />
               <RangeControl label="Увеличение при наведении" value={settings.hoverScale} min={100} max={180} onChange={(hoverScale) => onChangeSettings({ hoverScale })} />
+              <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
+              <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
+              <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
             </>
           )}
-          <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
-          <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>
-          <label className="color-control"><span>Фон</span><span><input type="color" value={settings.background} onChange={(event) => onChangeSettings({ background: event.target.value })} /><output>{settings.background.toUpperCase()}</output></span></label>
         </div>
       </section>
+      <ItemInspector
+        item={selectedItem}
+        onUpdate={(updates) => {
+          if (selectedItem) onUpdateItem(selectedItem.id, updates)
+        }}
+        onRemove={() => {
+          if (selectedItem) onRemoveItem(selectedItem.id)
+        }}
+        layoutMode={layoutMode}
+        groupCount={settings.panorama.groupCount}
+        isPanoramaHero={layoutMode === 'panorama' && selectedItem?.id === items[0]?.id}
+      />
+      {layoutMode === 'panorama' && <PreviewImagesControl images={previewImages} onChange={onPreviewImageChange} onClear={onPreviewImageClear} />}
       <footer className="sidebar__footer">
         <button className="button button--dark" onClick={onPreview}><PanelCollapseIcon />Свернуть</button>
       </footer>

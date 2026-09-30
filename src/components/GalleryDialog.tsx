@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, MouseEvent } from 'react'
 import { gsap } from 'gsap'
 import type { CollageItem } from '../types'
+import { criticallyDampedSpring } from '../lib/motion'
 import { CloseIcon } from './icons'
 import { VisibilityVideo } from './VisibilityVideo'
 import { ImageWithPlaceholder } from './ImageWithPlaceholder'
@@ -17,15 +18,6 @@ interface ElementTransform {
   rotation: number
   scaleX: number
   scaleY: number
-}
-
-const springRate = Math.PI * 2
-const springEndValue = 1 - (1 + springRate) * Math.exp(-springRate)
-
-function gallerySpringNoBounce(progress: number) {
-  const time = gsap.utils.clamp(0, 1, progress)
-  // Critically damped spring residual: (1 + ωt)e^-ωt, normalized to finish at 1.
-  return (1 - (1 + springRate * time) * Math.exp(-springRate * time)) / springEndValue
 }
 
 function getElementTransform(element: HTMLElement): ElementTransform {
@@ -138,7 +130,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
         closingTweenRef.current = gsap.to(root ?? media ?? {}, {
           opacity: 0,
           duration: prefersReducedMotion ? 0 : 0.168,
-          ease: gallerySpringNoBounce,
+          ease: criticallyDampedSpring,
           onComplete: onClose,
         })
       })
@@ -180,7 +172,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
         rotation: sourceTransform.rotation,
         transformOrigin: '50% 50%',
         duration: 0.252,
-        ease: gallerySpringNoBounce,
+        ease: criticallyDampedSpring,
         onComplete: onClose,
       })
     })
@@ -271,7 +263,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
         scaleY: 1,
         rotation: 0,
         duration: 0.425,
-        ease: gallerySpringNoBounce,
+        ease: criticallyDampedSpring,
         onComplete: () => {
           entranceTweenRef.current = undefined
           expandedBoundsRef.current = media.getBoundingClientRect()
@@ -295,7 +287,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeItemId, closeGallery])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const media = activeMediaRef.current
     const image = media?.querySelector<HTMLImageElement>('img.image-loading__image')
     const video = media?.querySelector<HTMLVideoElement>('video')
@@ -322,6 +314,7 @@ export function GalleryDialog({ items, activeItemId, origin, onClose }: GalleryD
               ref={isActiveItem ? activeRef : undefined}
               className="gallery__item"
               data-active={isActiveItem ? 'true' : undefined}
+              data-ready={isActiveItem && isActiveMediaReady ? 'true' : undefined}
               data-neighbor={neighborSide}
               data-gallery-id={item.id}
               data-closing={item.id === activeItemId && isClosing && shouldReturnOriginal ? 'true' : undefined}
