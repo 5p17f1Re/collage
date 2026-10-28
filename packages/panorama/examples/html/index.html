@@ -1,0 +1,15 @@
+<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Панорама — пример подключения</title>
+<link rel="stylesheet" href="/dist/styles.css"><style>body{margin:0;font:16px/1.5 Arial,sans-serif}header,section.host{padding:24px}h1{font-size:24px}#editors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px;padding:20px}#host-button{background:#ffcc00;border:3px solid #663300;padding:8px}</style></head><body>
+<header><h1>Пример подключения к HTML / PHP-сайту</h1><p>Два блока, собственные настройки, черновики и опубликованные версии. Изначально материалы отсутствуют.</p><button id="host-button">Кнопка сайта</button></header>
+<section class="host"><h2>Опубликованный блок A</h2><div id="viewer-a"></div><h2>Опубликованный блок B</h2><div id="viewer-b"></div></section>
+<div id="editors"><div id="editor-a"></div><div id="editor-b"></div></div>
+<script src="/dist/panorama.js"></script><script type="module">
+import {adapter,loadDraft,loadPublished} from '/examples/html/adapter.js';
+const handles={};
+for(const id of ['a','b']){
+ handles['viewer-'+id]=AvgvstPanorama.mountPanorama(document.querySelector('#viewer-'+id),await loadPublished(id));
+ handles['editor-'+id]=AvgvstPanorama.mountEditor(document.querySelector('#editor-'+id),{blockId:id,initialData:await loadDraft(id),adapter});
+}
+window.addEventListener('panorama-published',async event=>{const id=event.detail.blockId;handles['viewer-'+id].update(await loadPublished(id))});
+window.panoramaDemo=handles;
+</script></body></html>

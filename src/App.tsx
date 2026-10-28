@@ -253,7 +253,7 @@ export function App() {
   if (isPreview) {
     return (
       <>
-        <div className={`clean-preview ${layoutMode === 'panorama' ? 'clean-preview--panorama' : ''}`}>
+        <div className={`clean-preview ${layoutMode === 'panorama' ? 'clean-preview--panorama' : ''}`} style={layoutMode === 'panorama' && isMobile ? { backgroundColor: settings.background } : undefined}>
           {layoutMode === 'panorama' && settings.previewImages.top && (
             <img className="clean-preview__surround clean-preview__surround--top" src={settings.previewImages.top.source} alt={settings.previewImages.top.name} draggable={false} />
           )}
@@ -269,7 +269,7 @@ export function App() {
   }
 
   return (
-    <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''} ${isSidebarOpen ? '' : 'app-shell--settings-collapsed'}`}>
+    <div className={`app-shell ${layoutMode === 'panorama' ? 'app-shell--panorama' : ''} ${isSidebarOpen ? '' : 'app-shell--settings-collapsed'}`} style={layoutMode === 'panorama' && isMobile ? { backgroundColor: settings.background } : undefined}>
       <Sidebar
         items={items}
         selectedItem={selectedItem}

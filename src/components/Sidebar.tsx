@@ -126,7 +126,8 @@ function CompactRangeControl({
 function formatScreenCount(spanPercent: number) {
   const screens = spanPercent / 50
   const number = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(screens)
-  return `${number} ${screens === 1 ? 'экран' : 'экрана'}`
+  const unit = screens === 1 ? 'экран' : Number.isInteger(screens) && screens >= 5 ? 'экранов' : 'экрана'
+  return `${number} ${unit}`
 }
 
 function ScaleModeControl({ value, onChange }: { value: ScaleMode; onChange: (value: ScaleMode) => void }) {
@@ -445,14 +446,14 @@ export function Sidebar({
         <div id="composition-settings" hidden={!isSettingsOpen}>
           {layoutMode === 'panorama' ? (
             <>
-              <CompactRangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={150} step={5} valueLabel={formatScreenCount(settings.panorama.spanPercent)} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
-              {items[0]?.type !== 'text' && <CompactRangeControl label="Главное изображение" value={settings.panorama.heroScale} min={50} max={250} valueLabel={`${settings.panorama.heroScale}%`} onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
+              <CompactRangeControl label="Ширина ленты" value={settings.panorama.spanPercent} min={50} max={250} step={5} valueLabel={formatScreenCount(settings.panorama.spanPercent)} onChange={(spanPercent) => onChangePanoramaSettings({ spanPercent })} />
+              {items[0]?.type !== 'text' && <CompactRangeControl label="Главное изображение" value={settings.panorama.heroScale} min={50} max={250} step={5} valueLabel={`${settings.panorama.heroScale}%`} onChange={(heroScale) => onChangePanoramaSettings({ heroScale })} />}
               <CompactRangeControl label="Отступы" value={settings.panorama.cardGap} min={0} max={16} step={4} valueLabel={`${settings.panorama.cardGap} px`} onChange={(cardGap) => onChangePanoramaSettings({ cardGap })} />
               <details className="settings-panel__advanced">
                 <summary>Больше настроек</summary>
                 <div className="settings-panel__advanced-controls">
-                  <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={5} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
-                  <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={150} valueLabel={`${settings.panorama.groupContrast}%`} hint="После 100% маленькие карточки уменьшаются дальше; крупные не растут." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
+                  <RangeControl label="Размерных групп" value={settings.panorama.groupCount} min={1} max={7} suffix="" onChange={(groupCount) => onChangePanoramaSettings({ groupCount })} />
+                  <RangeControl label="Контраст размеров" value={settings.panorama.groupContrast} min={0} max={250} step={5} valueLabel={`${settings.panorama.groupContrast}%`} hint="При увеличении контраста карточки занимают освободившееся место." emphasizedTick={100} onChange={(groupContrast) => onChangePanoramaSettings({ groupContrast })} />
                   <RangeControl label="Энергия движения" value={settings.panorama.inertia} min={0} max={100} valueLabel={`${settings.panorama.inertia}%`} hint="0% — без доката; выше — дольше и дальше после свайпа." showTickLabels onChange={(inertia) => onChangePanoramaSettings({ inertia })} />
                   <label className="check-control"><input type="checkbox" checked={settings.showGrid} onChange={(event) => onChangeSettings({ showGrid: event.target.checked })} /><span>Точечная сетка</span></label>
                   <label className="color-control"><span>Цвет точек</span><span><input type="color" value={settings.gridColor} onChange={(event) => onChangeSettings({ gridColor: event.target.value })} /><output>{settings.gridColor.toUpperCase()}</output></span></label>

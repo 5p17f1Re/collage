@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.demo-data/
+artifacts/
+examples/next/.next/
+examples/next/next-env.d.ts

@@ -23,6 +23,8 @@ const PANORAMA_REFERENCE_CONTRAST = 60
 const PANORAMA_REFERENCE_HERO_SCALE = 100
 const PANORAMA_GUIDE_RATIOS = [0.14, 0.36, 0.64, 0.86]
 const PANORAMA_CLUSTER_RATIOS = [0.1, 0.28, 0.42, 0.58, 0.72, 0.9]
+const PANORAMA_DENSE_CLUSTER_RATIOS = [0.02, 0.14, 0.27, 0.4, 0.6, 0.73, 0.86, 0.98]
+const PANORAMA_SEVEN_GROUP_CLUSTER_RATIOS = Array.from({ length: 17 }, (_, index) => 0.02 + index * 0.06)
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0
@@ -342,10 +344,12 @@ function getPanoramaGroupAssignments(items: CollageItem[], groupCount: number, s
 }
 
 function getPanoramaGroupFactor(group: number, groupCount: number, groupContrast: number) {
-  const contrast = clamp(groupContrast, 0, 150)
+  const contrast = clamp(groupContrast, 0, 250)
   const smallestGroupFactor = contrast <= 100
     ? interpolate(1, 0.4, contrast / 100)
-    : interpolate(0.4, 0.25, (contrast - 100) / 50)
+    : contrast <= 150
+      ? interpolate(0.4, 0.25, (contrast - 100) / 50)
+      : interpolate(0.25, 0.18, (contrast - 150) / 100)
   return groupCount === 1 ? 1 : interpolate(smallestGroupFactor, 1, group / (groupCount - 1))
 }
 
@@ -353,15 +357,16 @@ function getGuidedTarget(
   index: number,
   group: number,
   contentBounds: Rectangle,
+  clusterRatios: number[],
   random: () => number,
 ) {
   const guideIndex = (index * 3 + group * 2) % PANORAMA_GUIDE_RATIOS.length
-  const clusterIndex = (index * 5 + group) % PANORAMA_CLUSTER_RATIOS.length
+  const clusterIndex = (index * 5 + group) % clusterRatios.length
   const xJitter = (random() - 0.5) * contentBounds.width * 0.035
   const yJitter = (random() - 0.5) * contentBounds.height * 0.025
 
   return {
-    x: contentBounds.x + contentBounds.width * PANORAMA_CLUSTER_RATIOS[clusterIndex] + xJitter,
+    x: contentBounds.x + contentBounds.width * clusterRatios[clusterIndex] + xJitter,
     y: contentBounds.y + contentBounds.height * PANORAMA_GUIDE_RATIOS[guideIndex] + yJitter,
     guideY: contentBounds.y + contentBounds.height * PANORAMA_GUIDE_RATIOS[guideIndex],
   }
@@ -441,6 +446,8 @@ function tryPackPanorama(
   seed: number,
   scale: number,
   textMetrics: Record<string, TextCardMetrics>,
+  spanPercent: number,
+  placeTextFirst: boolean,
 ) {
   if (!items.length) return {} as Record<string, ItemLayout>
 
@@ -448,6 +455,11 @@ function tryPackPanorama(
   const contentBounds = getPanoramaContentBounds(world)
   const assignments = getPanoramaGroupAssignments(items, groupCount, seed)
   const secondaryItems = items.slice(1)
+  const clusterRatios = secondaryItems.length < 50
+    ? PANORAMA_CLUSTER_RATIOS
+    : groupCount >= 7 && (secondaryItems.length >= 80 || spanPercent >= 200)
+      ? PANORAMA_SEVEN_GROUP_CLUSTER_RATIOS
+      : PANORAMA_DENSE_CLUSTER_RATIOS
   const naturalBaseHeight = clamp(Math.min(contentBounds.height * 0.28, contentBounds.width * 0.125), 72, 220)
   const baseHeight = naturalBaseHeight * scale
   // Half the selected gap is reserved on each side of cards and the hero,
@@ -494,7 +506,12 @@ function tryPackPanorama(
   const random = createSeededRandom(seed + 103)
   const secondary = secondaryItems
     .map((item) => ({ item, group: assignments.get(item.id) ?? 0, noise: random() }))
-    .sort((first, second) => second.group - first.group || first.noise - second.noise)
+    .sort((first, second) => (
+      (placeTextFirst ? Number(second.item.type === 'text') - Number(first.item.type === 'text') : 0)
+      || second.group - first.group
+      || (placeTextFirst ? Math.max(0.1, getItemAspectRatio(second.item)) - Math.max(0.1, getItemAspectRatio(first.item)) : 0)
+      || first.noise - second.noise
+    ))
 
   for (const [index, entry] of secondary.entries()) {
     const measuredText = entry.item.type === 'text' ? textMetrics[entry.item.id] : undefined
@@ -502,7 +519,7 @@ function tryPackPanorama(
     const width = measuredText?.width ?? height * Math.max(0.1, getItemAspectRatio(entry.item))
     const outerWidth = width + cardGap
     const outerHeight = height + cardGap
-    const target = getGuidedTarget(index, entry.group, contentBounds, random)
+    const target = getGuidedTarget(index, entry.group, contentBounds, clusterRatios, random)
     const fits = (free: Rectangle) => outerWidth <= free.width && outerHeight <= free.height
     const isAboveOrBelowHero = (free: Rectangle) => free.y + free.height <= heroOuter.y || free.y >= heroOuter.y + heroOuter.height
     const isBesideHero = (free: Rectangle) => free.y < heroOuter.y + heroOuter.height && free.y + free.height > heroOuter.y
@@ -554,7 +571,7 @@ function tryPackPanorama(
 export function getPanoramaWorldSize(viewportWidth: number, spanPercent: number, stageHeight?: number) {
   const safeViewportWidth = Math.max(1, viewportWidth || FALLBACK_VIEWPORT.width)
   return {
-    width: safeViewportWidth * clamp(spanPercent, 50, 150) / 50,
+    width: safeViewportWidth * clamp(spanPercent, 50, 250) / 50,
     height: Math.max(1, stageHeight ?? PANORAMA_STAGE_HEIGHT),
   }
 }
@@ -567,19 +584,19 @@ export function generatePanoramaLayout(
   textMetrics: Record<string, TextCardMetrics> = {},
   stageHeight?: number,
 ): PanoramaLayoutResult {
-  const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 5)
-  const groupContrast = clamp(settings.panorama.groupContrast, 0, 150)
+  const groupCount = clamp(Math.round(settings.panorama.groupCount), 1, 7)
+  const groupContrast = clamp(settings.panorama.groupContrast, 0, 250)
   const heroScale = clamp(settings.panorama.heroScale, 50, 250)
   const cardGap = normalizePanoramaGap(settings.panorama.cardGap)
   const world = getPanoramaWorldSize(viewportWidth, settings.panorama.spanPercent, stageHeight)
-  const findLargestLayout = (contrast: number, mainScale: number, maxScale: number) => {
+  const findLargestLayout = (contrast: number, mainScale: number, maxScale: number, placeTextFirst: boolean) => {
     let layout: Record<string, ItemLayout> | undefined
     let low = 0.02
     let high = maxScale
 
     for (let attempt = 0; attempt < 18; attempt += 1) {
       const scale = (low + high) / 2
-      const candidate = tryPackPanorama(items, world, groupCount, contrast, mainScale, cardGap, seed, scale, textMetrics)
+      const candidate = tryPackPanorama(items, world, groupCount, contrast, mainScale, cardGap, seed, scale, textMetrics, settings.panorama.spanPercent, placeTextFirst)
       if (candidate) {
         layout = candidate
         low = scale
@@ -591,11 +608,32 @@ export function generatePanoramaLayout(
     return { layout: layout ?? {}, scale: low }
   }
 
-  // Keep the default secondary scale stable: changing contrast or reducing the
-  // hero should free space, not trigger the packer to enlarge all other cards.
-  const baseline = findLargestLayout(PANORAMA_REFERENCE_CONTRAST, PANORAMA_REFERENCE_HERO_SCALE, 4)
-  if (groupContrast === PANORAMA_REFERENCE_CONTRAST && heroScale === PANORAMA_REFERENCE_HERO_SCALE) {
-    return { layouts: baseline.layout, world }
+  const findWithOrder = (placeTextFirst: boolean) => {
+    // Keep the baseline stable when the hero changes. Higher contrast frees
+    // space around smaller groups, so let the remaining cards refill that space.
+    const baseline = findLargestLayout(PANORAMA_REFERENCE_CONTRAST, PANORAMA_REFERENCE_HERO_SCALE, 4, placeTextFirst)
+    if (groupContrast === PANORAMA_REFERENCE_CONTRAST && heroScale === PANORAMA_REFERENCE_HERO_SCALE) {
+      return baseline.layout
+    }
+    const maxScale = groupCount > 1 && groupContrast > PANORAMA_REFERENCE_CONTRAST ? 4 : baseline.scale
+    return findLargestLayout(groupContrast, heroScale, maxScale, placeTextFirst).layout
   }
-  return { layouts: findLargestLayout(groupContrast, heroScale, baseline.scale).layout, world }
+
+  const original = findWithOrder(false)
+  if (settings.panorama.spanPercent > 85 || !items.some((item) => item.type === 'text')) {
+    return { layouts: original, world }
+  }
+
+  const occupiedArea = (layout: Record<string, ItemLayout>) => Object.values(layout)
+    .reduce((area, card) => area + card.width * (card.height ?? 0), 0)
+  const originalArea = occupiedArea(original)
+  const contentArea = world.width * Math.min(PANORAMA_HEIGHT, world.height)
+  if (originalArea >= contentArea * 0.75) return { layouts: original, world }
+
+  // Fixed-size text placed late can force every image to shrink even when
+  // most of the strip is empty. Try reserving text space before packing images.
+  // Search only sparse strips; independent searches preserve the original
+  // result because guided placement is not monotonic in scale.
+  const textFirst = findWithOrder(true)
+  return { layouts: occupiedArea(textFirst) > originalArea ? textFirst : original, world }
 }
